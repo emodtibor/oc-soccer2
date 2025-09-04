@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  backend:
+    build: ./backend
+    container_name: soccer-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/db.sqlite:/app/db.sqlite
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: soccer-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

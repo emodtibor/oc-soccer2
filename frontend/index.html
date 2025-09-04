@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Soccer Club</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { text-align: center; }
+    h2 { margin-top: 2rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
+    button { padding: 0.4rem 0.8rem; margin: 0.2rem; }
+    .teams { display: flex; gap: 2rem; margin-top: 1rem; }
+    .team { border: 1px solid #ccc; padding: 1rem; width: 50%; }
+    input { padding: 0.4rem; margin: 0.2rem 0; width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>Soccer Club</h1>
+
+  <!-- Players Section -->
+  <section>
+    <h2>Players</h2>
+    <table id="playersTable">
+      <thead>
+        <tr><th>Name</th><th>Skill Rating</th><th>Action</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button onclick="addPlayer()">Add Player</button>
+  </section>
+
+  <!-- Matches Section -->
+  <section>
+    <h2>Matches</h2>
+    <table id="matchesTable" border="1">
+      <thead>
+        <tr><th>Date</th><th>Location</th><th>Action</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- New Match -->
+  <section>
+    <h2>New Match</h2>
+    <input type="date" id="matchDate" />
+    <input type="text" id="matchLocation" placeholder="Location" />
+    <button onclick="saveMatch()">Save</button>
+  </section>
+
+  <!-- Team Assignment -->
+  <section>
+    <h2>Team Assignment</h2>
+    <div class="teams">
+      <div class="team" id="team1"><h3>Team 1</h3></div>
+      <div class="team" id="team2"><h3>Team 2</h3></div>
+    </div>
+    <button id="generateTeams">Generate Teams</button>
+  </section>
+
+  <script src="config.js"></script>
+ <script>
+  const API_URL = window.APP_CONFIG.API_URL;
+  const players = [];
+  const matches = [];
+
+  // --- PLAYERS ---
+  async function fetchPlayers() {
+    const res = await fetch(`${API_URL}/players`);
+    const data = await res.json();
+    players.length = 0;
+    players.push(...data);
+    renderPlayers();
+  }
+
+  async function addPlayer() {
+    const name = prompt('Player name:');
+    const skill = parseInt(prompt('Skill (1-5):'), 10);
+    if (name && !isNaN(skill)) {
+      await fetch(`${API_URL}/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, skill })
+      });
+      fetchPlayers();
+    }
+  }
+
+  // --- MATCHES ---
+  async function fetchMatches() {
+    const res = await fetch(`${API_URL}/matches`);
+    const data = await res.json();
+    matches.length = 0;
+    matches.push(...data);
+    renderMatches();
+  }
+
+  async function saveMatch() {
+    const date = document.getElementById('matchDate').value;
+    const location = document.getElementById('matchLocation').value;
+    if (date && location) {
+      await fetch(`${API_URL}/matches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, location })
+      });
+      document.getElementById('matchDate').value = "";
+      document.getElementById('matchLocation').value = "";
+      fetchMatches();
+    }
+  }
+
+  async function deleteMatch(id) {
+    await fetch(`${API_URL}/matches/${id}`, { method: "DELETE" });
+    fetchMatches();
+  }
+
+  // --- RENDER ---
+  function renderPlayers() {
+    const tbody = document.querySelector('#playersTable tbody');
+    tbody.innerHTML = '';
+    players.forEach((player, index) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${player.name}</td>
+        <td>${player.skill}</td>
+        <td><button onclick="editPlayer(${index})">Edit</button></td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  function renderMatches() {
+    const tbody = document.querySelector('#matchesTable tbody');
+    tbody.innerHTML = '';
+    matches.forEach((match) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${match.date}</td>
+        <td>${match.location}</td>
+        <td><button onclick="deleteMatch(${match.id})">Delete</button></td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  // --- INIT ---
+  window.onload = () => {
+    fetchPlayers();
+    fetchMatches();
+  };
+</script>
+
+</body>
+</html>
+
