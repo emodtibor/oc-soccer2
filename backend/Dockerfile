@@ -1,6 +1,7 @@
 # Node.js alap image
 FROM node:18-alpine
 
+ARG CACHEBUST=1
 # Mappa létrehozás
 WORKDIR /app
 
