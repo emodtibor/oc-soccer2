@@ -10,8 +10,6 @@ services:
     restart: unless-stopped
 
   frontend:
-    args:
-      - CACHEBUST=2   # ha újra deployolsz, emeld: 3, 4, ...
     build: ./frontend
     container_name: soccer-frontend
     ports:
