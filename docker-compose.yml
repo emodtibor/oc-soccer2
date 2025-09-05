@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./backend/db.sqlite:/app/db.sqlite
+      - ./backend/data:/app/data
     restart: unless-stopped
 
   frontend:
