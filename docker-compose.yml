@@ -19,3 +19,5 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    volumes:
+      - ./frontend/config.js:/usr/share/nginx/html/config.js:ro
