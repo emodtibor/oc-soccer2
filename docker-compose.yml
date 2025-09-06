@@ -4,7 +4,7 @@ services:
     build:
       context: ./backend
       args:
-        - CACHEBUST=5
+        - CACHEBUST=6
     ports:
       - "3000:3000"
     volumes:
@@ -15,7 +15,7 @@ services:
     build:
       context: ./frontend
       args:
-        - CACHEBUST=5
+        - CACHEBUST=6
     ports:
       - "84:80"
     depends_on:
