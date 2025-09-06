@@ -1,5 +1,6 @@
 # Stabilabb a Debian-alap ARM-on, mint az Alpine
 FROM node:18-bullseye
+ARG CACHEBUST=5
 
 # Build toolchain a natív modulokhoz (sqlite3, better-sqlite3, stb.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
