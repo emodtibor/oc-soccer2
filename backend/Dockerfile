@@ -1,32 +1,27 @@
-# Stabilabb a Debian-alap ARM-on, mint az Alpine
+# Debian alap ARM-on megbízhatóbb a natív modulokhoz, mint az Alpine
 FROM node:18-bullseye
-ARG CACHEBUST=6
 
-# Build toolchain a natív modulokhoz (sqlite3, better-sqlite3, stb.)
+# Toolchain + sqlite fejlécek a forrásból építéshez
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ sqlite3 ca-certificates \
+    python3 make g++ pkg-config libsqlite3-dev sqlite3 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Mappa létrehozás
 WORKDIR /app
 
-# package.json és package-lock.json másolása
+# Csak a függőség-manifeszteket másoljuk először a cache miatt
 COPY package*.json ./
 
+# Kényszerítsük a natív modulok (sqlite3) forrásból építését
+ENV NODE_ENV=production \
+    npm_config_build_from_source=true
 
-# Ha vannak natív modulok, kényszerítjük a forrásból építést
-ENV npm_config_build_from_source=true \
-    NODE_ENV=production
+# Lockfile-alapú, prod-only install
+RUN npm ci --omit=dev \
+ # Biztos ami biztos: építsük újra explicit a sqlite3-at
+ && npm rebuild sqlite3 --build-from-source
 
-# Prod függőségek telepítése (lockfile-t tiszteletben tartva)
-# Ha nincs package-lock.json, használhatsz 'npm install --omit=dev'-et
-RUN npm ci --omit=dev
-
-# Kód bemásolása
+# Alkalmazás kód
 COPY . .
 
-# Port
 EXPOSE 3000
-
-# Indító parancs
 CMD ["node", "server.js"]
