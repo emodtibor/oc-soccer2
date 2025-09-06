@@ -1,21 +1,25 @@
-# Node.js alap image
-FROM node:18-alpine
+# Stabilabb a Debian-alap ARM-on, mint az Alpine
+FROM node:18-bullseye
 
-# build toolchain a native modulokhoz (sqlite3/better-sqlite3 stb.)
-RUN apk add --no-cache python3 make g++ sqlite
+# Build toolchain a natív modulokhoz (sqlite3, better-sqlite3, stb.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ sqlite3 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-ARG CACHEBUST=1
 # Mappa létrehozás
 WORKDIR /app
 
 # package.json és package-lock.json másolása
 COPY package*.json ./
 
-# Ha sqlite3 prebuild nincs ARM-ra, építse forrásból
-ENV npm_config_build_from_source=true
 
-# Függőségek telepítése
-RUN npm install --production
+# Ha vannak natív modulok, kényszerítjük a forrásból építést
+ENV npm_config_build_from_source=true \
+    NODE_ENV=production
+
+# Prod függőségek telepítése (lockfile-t tiszteletben tartva)
+# Ha nincs package-lock.json, használhatsz 'npm install --omit=dev'-et
+RUN npm ci --omit=dev
 
 # Kód bemásolása
 COPY . .
