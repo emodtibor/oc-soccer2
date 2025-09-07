@@ -1,6 +1,8 @@
 # Debian alap ARM-on megbízhatóbb a native modulokhoz
 FROM node:18-bullseye
 
+ARG CACHEBUST=7
+
 # Toolchain + sqlite fejlécek (kellenek a forrásból fordításhoz)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ pkg-config libsqlite3-dev sqlite3 ca-certificates \
@@ -18,9 +20,7 @@ ENV NODE_ENV=production \
 # Prod függőségek telepítése
 # Ha van lockfile: 'npm ci --omit=dev' az ideális
 RUN npm ci --omit=dev || npm install --omit=dev
-
-# Biztos ami biztos: explicit újrafordítás
-RUN npm rebuild sqlite3 --build-from-source || true
+ && npm rebuild sqlite3 --build-from-source || true
 
 # ÉPÍTÉSI ELLENŐRZÉS: tényleg létezik-e a bináris?
 RUN test -f node_modules/sqlite3/build/Release/node_sqlite3.node \
