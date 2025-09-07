@@ -19,8 +19,8 @@ ENV NODE_ENV=production \
 
 # Prod függőségek telepítése
 # Ha van lockfile: 'npm ci --omit=dev' az ideális
-RUN npm ci --omit=dev || npm install --omit=dev
- && npm rebuild sqlite3 --build-from-source || true
+RUN npm ci --omit=dev || npm install --omit=dev \
+&& npm rebuild sqlite3 --build-from-source || true
 
 # ÉPÍTÉSI ELLENŐRZÉS: tényleg létezik-e a bináris?
 RUN test -f node_modules/sqlite3/build/Release/node_sqlite3.node \
