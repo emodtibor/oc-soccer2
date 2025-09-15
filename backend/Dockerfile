@@ -24,5 +24,10 @@ RUN test -f node_modules/sqlite3/build/Release/node_sqlite3.node \
  || (echo "sqlite3 native bin missing!" && ls -lah node_modules/sqlite3/build || true && exit 1)
 
 COPY . .
+ENV DB_PATH=/app/data/app.sqlite
+ENV MIGRATIONS_DIR=/app/db/migrations
+
+# perzisztens adat
+RUN mkdir -p /app/data
 EXPOSE 3000
-CMD ["node","server.js"]
+CMD node scripts/migrate.js && node src/server.js

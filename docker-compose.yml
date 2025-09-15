@@ -7,8 +7,12 @@ services:
         - CACHEBUST=7
     ports:
       - "3000:3000"
+    environment:
+      - DB_PATH=/app/data/app.sqlite
+      - MIGRATIONS_DIR=/app/db/migrations
     volumes:
       - ./backend/data:/app/data
+      - ./backend/db/migrations:/app/db/migrations:ro
     restart: unless-stopped
 
   frontend:
