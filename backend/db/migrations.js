@@ -19,6 +19,25 @@ const migrations = [
     }
   },
 
+  {
+    id: 2,
+    name: "add_location_to_matches",
+    up: (db, done) => {
+      db.all(`PRAGMA table_info(matches)`, (err, cols) => {
+        if (err) return done(err);
+        const hasCol = cols.some(c => c.name === "location");
+        if (!hasCol) {
+          db.run(
+            `ALTER TABLE matches ADD COLUMN location TEXT DEFAULT ''`,
+            done
+          );
+        } else {
+          done(); // már létezik
+        }
+      });
+    }
+  },
+
   // ide jöhetnek későbbi migrációk (id: 2, 3, stb.)
 ];
 
