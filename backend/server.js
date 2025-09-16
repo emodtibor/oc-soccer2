@@ -1,17 +1,29 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-require("./db"); // init táblák
+const sqlite3 = require("sqlite3").verbose();
+const { runMigrations } = require("./db/migrations");
 
-const playersRoutes = require("./routes/players");
-const matchesRoutes = require("./routes/matches");
+const db = new sqlite3.Database("./data/db.sqlite");
 
-const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+// migrációk lefuttatása induláskor
+runMigrations(db)
+  .then(() => {
+    console.log("Migrations OK");
 
-app.use("/players", playersRoutes);
-app.use("/matches", matchesRoutes);
+    const app = express();
+    app.use(cors());
+    app.use(bodyParser.json());
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    // --- API route-ok ide (players, matches, stb.) ---
+    // pl. app.get("/players", ...)
+
+    const PORT = 3000;
+    app.listen(PORT, () =>
+      console.log(`Server running on port ${PORT}`)
+    );
+  })
+  .catch((err) => {
+    console.error("Migration error:", err);
+    process.exit(1);
+  });
