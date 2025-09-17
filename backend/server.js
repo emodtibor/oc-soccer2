@@ -6,6 +6,9 @@ const { runMigrations } = require("./db/migrations");
 
 const db = new sqlite3.Database("./data/db.sqlite");
 
+const playersRoutes = require("./routes/players");
+const matchesRoutes = require("./routes/matches");
+
 // migrációk lefuttatása induláskor
 runMigrations(db)
   .then(() => {
@@ -17,6 +20,9 @@ runMigrations(db)
 
     // --- API route-ok ide (players, matches, stb.) ---
     // pl. app.get("/players", ...)
+
+    app.use("/players", playersRoutes);
+    app.use("/matches", matchesRoutes);
 
     const PORT = 3000;
     app.listen(PORT, () =>
