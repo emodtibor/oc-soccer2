@@ -1,45 +1,72 @@
-const db = require("../db");
+// controllers/playersController.js
+// Kis promise-wrapperek az sqlite3-hoz:
+const dbAll = (db, sql, params = []) =>
+  new Promise((res, rej) => db.all(sql, params, (e, rows) => e ? rej(e) : res(rows)));
+const dbGet = (db, sql, params = []) =>
+  new Promise((res, rej) => db.get(sql, params, (e, row) => e ? rej(e) : res(row)));
+const dbRun = (db, sql, params = []) =>
+  new Promise((res, rej) => db.run(sql, params, function (e) { e ? rej(e) : res(this); }));
 
-exports.list = (req, res) => {
-  db.all("SELECT * FROM players ORDER BY name", (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows.map(r => ({ ...r, isGoalie: !!r.is_goalie })));
-  });
-};
-
-exports.create = (req, res) => {
-  const { name, skill, isGoalie = false } = req.body || {};
-  if (!name || Number.isNaN(parseInt(skill,10)))
-    return res.status(400).json({ error: "name és skill kötelező" });
-
-  db.run(
-    "INSERT INTO players (name, skill, is_goalie) VALUES (?, ?, ?)",
-    [name, parseInt(skill,10), isGoalie ? 1 : 0],
-    function(err){
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, name, skill: parseInt(skill,10), isGoalie: !!isGoalie });
-    }
+// GET /players
+async function list(req, res) {
+  const db = req.db;
+  const rows = await dbAll(
+    db,
+    "SELECT id, name, skill, is_goalie FROM players ORDER BY name"
   );
-};
+  res.json(rows);
+}
 
-exports.update = (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const { name, skill, isGoalie } = req.body || {};
-  db.run(
-    `UPDATE players SET 
-      name = COALESCE(?, name),
-      skill = COALESCE(?, skill),
-      is_goalie = COALESCE(?, is_goalie)
-     WHERE id = ?`,
-    [
-      name ?? null,
-      (typeof skill === "number" ? skill : null),
-      (typeof isGoalie === "boolean" ? (isGoalie?1:0) : null),
-      id
-    ],
-    function(err){
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: this.changes > 0 });
-    }
+// POST /players  { name, skill, is_goalie? }
+async function create(req, res) {
+  const db = req.db;
+  const { name, skill, is_goalie = 0 } = req.body ?? {};
+
+  if (!name || typeof skill !== "number") {
+    return res.status(400).json({ error: "name és skill kötelező (skill: number)" });
+  }
+
+  const result = await dbRun(
+    db,
+    "INSERT INTO players(name, skill, is_goalie) VALUES (?, ?, ?)",
+    [name, skill, is_goalie ? 1 : 0]
   );
-};
+
+  const row = await dbGet(
+    db,
+    "SELECT id, name, skill, is_goalie FROM players WHERE id = ?",
+    [result.lastID]
+  );
+  res.status(201).json(row);
+}
+
+// PATCH /players/:id  { name?, skill?, is_goalie? }
+async function update(req, res) {
+  const db = req.db;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Érvénytelen id" });
+
+  const fields = [];
+  const params = [];
+
+  if (req.body?.name !== undefined) { fields.push("name = ?"); params.push(req.body.name); }
+  if (req.body?.skill !== undefined) {
+    if (typeof req.body.skill !== "number") return res.status(400).json({ error: "skill number legyen" });
+    fields.push("skill = ?"); params.push(req.body.skill);
+  }
+  if (req.body?.is_goalie !== undefined) {
+    fields.push("is_goalie = ?"); params.push(req.body.is_goalie ? 1 : 0);
+  }
+
+  if (fields.length === 0) return res.status(400).json({ error: "Nincs módosítandó mező" });
+
+  params.push(id);
+  const exec = await dbRun(db, `UPDATE players SET ${fields.join(", ")} WHERE id = ?`, params);
+
+  if (exec.changes === 0) return res.status(404).json({ error: "Nem található játékos" });
+
+  const row = await dbGet(db, "SELECT id, name, skill, is_goalie FROM players WHERE id = ?", [id]);
+  res.json(row);
+}
+
+module.exports = { list, create, update };

@@ -1,35 +1,41 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const sqlite3 = require("sqlite3").verbose();
-const { runMigrations } = require("./db/migrations");
+const path = require("path");
+const fs = require("fs");
+const { initDb } = require("./db"); // <-- A verzióból
 
-const db = new sqlite3.Database("./data/db.sqlite");
+async function start() {
+  const dataDir = path.join(__dirname, "data");
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-const playersRoutes = require("./routes/players");
-const matchesRoutes = require("./routes/matches");
+  const db = await initDb(console); // <- itt nyit és migrál
 
-// migrációk lefuttatása induláskor
-runMigrations(db)
-  .then(() => {
-    console.log("Migrations OK");
+  const app = express();
+  app.use(cors());
+  app.use(bodyParser.json());
 
-    const app = express();
-    app.use(cors());
-    app.use(bodyParser.json());
-
-    // --- API route-ok ide (players, matches, stb.) ---
-    // pl. app.get("/players", ...)
-
-    app.use("/players", playersRoutes);
-    app.use("/matches", matchesRoutes);
-
-    const PORT = 3000;
-    app.listen(PORT, () =>
-      console.log(`Server running on port ${PORT}`)
-    );
-  })
-  .catch((err) => {
-    console.error("Migration error:", err);
-    process.exit(1);
+  // DB elérhetővé tétele a controllereknek:
+  app.use((req, _res, next) => {
+    req.db = db;
+    next();
   });
+
+  const playersRoutes = require("./routes/players");
+  const matchesRoutes = require("./routes/matches");
+  const matchParticipantsRoutes = require("./routes/matchParticipants");
+  const teamsRoutes = require("./routes/teams");
+
+  app.use("/matches", teamsRoutes);
+  app.use("/matches", matchParticipantsRoutes);
+  app.use("/players", playersRoutes);
+  app.use("/matches", matchesRoutes);
+
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+start().catch(err => {
+  console.error("Startup error:", err);
+  process.exit(1);
+});
