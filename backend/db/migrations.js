@@ -147,8 +147,8 @@ async function runMigrations(db, logger = console) {
       await m.up(db);
       await runAsync(
         db,
-        `INSERT INTO schema_migrations(id, name) VALUES(?, ?)`,
-        [m.id, m.name]
+        `INSERT INTO schema_migrations(id, name, applied_at) VALUES(?, ?, ?)`,
+        [m.id, m.name, new Date().toISOString()]
       );
     }
     await runAsync(db, `COMMIT`);
