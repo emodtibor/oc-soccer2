@@ -40,7 +40,7 @@ async function add(req, res) {
   await ensureMatch(db, matchId);
 
   if (!Number.isInteger(player_id)) {
-    return res.status(400).json({ error: "player_id kötelező (integer)" });
+    return res.status(400).json({ error: "player_id kötelező (integer) " + player_id });
   }
   const player = await dbGet(db, "SELECT id FROM players WHERE id = ?", [player_id]);
   if (!player) return res.status(404).json({ error: "Nem található játékos" });
