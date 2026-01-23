@@ -32,37 +32,72 @@ async function list(req, res) {
   res.json(rows);
 }
 
-// Body: { player_id: number }
 async function add(req, res) {
   const db = req.db;
   const matchId = Number(req.params.matchId);
-  const { player_id } = req.body ?? {};
+  const { playerIds } = req.body ?? {};
+
   await ensureMatch(db, matchId);
 
-  if (!Number.isInteger(player_id)) {
-    return res.status(400).json({ error: "player_id kötelező (integer) " + player_id });
+  // matchId validáció (opcionális, de hasznos)
+  if (!Number.isInteger(matchId)) {
+    return res.status(400).json({ error: "matchId érvénytelen" });
   }
-  const player = await dbGet(db, "SELECT id FROM players WHERE id = ?", [player_id]);
-  if (!player) return res.status(404).json({ error: "Nem található játékos" });
 
-  const ins = await dbRun(
-    db,
-    "INSERT OR IGNORE INTO match_participants(match_id, player_id) VALUES(?, ?)",
-    [matchId, player_id]
+  // playerIds validáció
+  if (!Array.isArray(playerIds) || playerIds.length === 0) {
+    return res.status(400).json({ error: "playerIds kötelező (nem üres tömb)" });
+  }
+  if (!playerIds.every(Number.isInteger)) {
+    return res.status(400).json({ error: "playerIds csak integer-eket tartalmazhat" });
+  }
+
+  // Duplikációk kiszűrése (hogy kevesebb DB roundtrip legyen)
+  const uniquePlayerIds = Array.from(new Set(playerIds));
+
+  // Ellenőrizzük, hogy minden player létezik-e
+  const placeholders = uniquePlayerIds.map(() => "?").join(",");
+  const existing = await dbAll(
+      db,
+      `SELECT id FROM players WHERE id IN (${placeholders})`,
+      uniquePlayerIds
   );
 
-  // visszaadjuk az aktuális listát (vagy csak a beszúrt rekordot is lehetne)
+  const existingIds = new Set(existing.map((r) => r.id));
+  const missingIds = uniquePlayerIds.filter((id) => !existingIds.has(id));
+
+  if (missingIds.length > 0) {
+    return res.status(404).json({
+      error: "Nem található játékos",
+      missingPlayerIds: missingIds,
+    });
+  }
+
+  // Beszúrások (INSERT OR IGNORE miatt a már meglévők nem hibáznak)
+  for (const playerId of uniquePlayerIds) {
+    await dbRun(
+        db,
+        "INSERT OR IGNORE INTO match_participants(match_id, player_id) VALUES(?, ?)",
+        [matchId, playerId]
+    );
+  }
+
+  // Visszaadjuk az aktuális listát
   const rows = await dbAll(
-    db,
-    `SELECT p.id, p.name, p.skill, p.is_goalie
+      db,
+      `SELECT p.id, p.name, p.skill, p.is_goalie
        FROM match_participants mp
        JOIN players p ON p.id = mp.player_id
       WHERE mp.match_id = ?
       ORDER BY p.name`,
-    [matchId]
+      [matchId]
   );
-  res.status(ins.changes ? 201 : 200).json(rows);
+
+  // 201 vs 200: tömbös beszúrásnál a sqlite3 changes nem megbízhatóan aggregálódik itt,
+  // ezért stabilan 200-at adunk. Ha kell, külön számolható.
+  return res.status(200).json(rows);
 }
+
 
 async function remove(req, res) {
   const db = req.db;
