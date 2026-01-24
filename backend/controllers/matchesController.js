@@ -98,4 +98,19 @@ async function update(req, res) {
   res.json(row);
 }
 
-module.exports = { list, create, update };
+async function generateTeams(req, res) {
+  const db = req.db;
+
+//   const teams = await dbAll(db, "SELECT id, name FROM teams");
+//   const players = await dbAll(db, "SELECT id, name, skill, is_goalie FROM players");
+//   const matches = [];
+//   for (let i = 0; i < teams.length; i++) {
+//     for (let j = i + 1; j < teams.length; j++) {
+//       matches.push({ team1: teams[i].id, team2: teams[j].id });
+//     }
+//   }
+//   for (const match of matches) {  }
+  res.json("valami")
+}
+
+module.exports = { list, create, update, generateTeams };
