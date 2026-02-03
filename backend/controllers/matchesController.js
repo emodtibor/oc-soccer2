@@ -1,6 +1,7 @@
 // controllers/matchesController.js
 
 // Kis promise-wrapperek az sqlite3 callback API-hoz:
+const {generateTeamsFor} = require("../services/teamGenerator");
 const dbAll = (db, sql, params = []) =>
   new Promise((res, rej) => db.all(sql, params, (e, rows) => (e ? rej(e) : res(rows))));
 const dbGet = (db, sql, params = []) =>
@@ -100,17 +101,29 @@ async function update(req, res) {
 
 async function generateTeams(req, res) {
   const db = req.db;
+  const matchId = req.params.id
 
-//   const teams = await dbAll(db, "SELECT id, name FROM teams");
-//   const players = await dbAll(db, "SELECT id, name, skill, is_goalie FROM players");
-//   const matches = [];
-//   for (let i = 0; i < teams.length; i++) {
-//     for (let j = i + 1; j < teams.length; j++) {
-//       matches.push({ team1: teams[i].id, team2: teams[j].id });
-//     }
-//   }
-//   for (const match of matches) {  }
-  res.json("valami")
+  const participiants = await dbAll(
+      db,
+      `SELECT p.id, p.name, p.skill, p.is_goalie
+       FROM match_participants mp
+              JOIN players p ON p.id = mp.player_id
+       WHERE mp.match_id = ?
+       ORDER BY p.name`,
+      [matchId]
+  );
+
+  const result = generateTeamsFor(participiants)
+  const teams = result.teams;
+  teams.forEach((team, i) => {
+    console.log(`Team ${i}`, team.members);
+  });
+  console.dir(teams, { depth: null });
+  console.log("teams type:", typeof teams);
+  console.log("isArray:", Array.isArray(teams));
+  console.log("value:", teams);
+
+  res.json(result)
 }
 
 module.exports = { list, create, update, generateTeams };

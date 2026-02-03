@@ -5,5 +5,6 @@ const { asyncHandler } = require("../utils/http");
 router.get("/", asyncHandler(ctrl.list));
 router.post("/", asyncHandler(ctrl.create));
 router.patch("/:id", asyncHandler(ctrl.update));
+router.delete("/:id", asyncHandler(ctrl.remove));
 
 module.exports = router;

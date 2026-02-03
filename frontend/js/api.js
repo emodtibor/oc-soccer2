@@ -19,6 +19,7 @@ export const api = {
   listPlayers: () => http("GET", "/players"),
   createPlayer: ({ name, skill, isGoalie }) => http("POST", "/players", { name, skill, isGoalie }),
   updatePlayer: (id, patch) => http("PATCH", `/players/${id}`, patch),
+  removePlayer: (id) => http("DELETE", `/players/${id}`),
 
   // matches
   listMatches: () => http("GET", "/matches"),
