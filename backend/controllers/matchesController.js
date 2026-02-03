@@ -1,7 +1,8 @@
 // controllers/matchesController.js
 
 // Kis promise-wrapperek az sqlite3 callback API-hoz:
-const {generateTeamsFor} = require("../services/teamGenerator");
+const { generateTeamsFor } = require("../services/teamGenerator");
+const { buildTeamsResponse, normalizePlayer } = require("../services/teamMapper");
 const dbAll = (db, sql, params = []) =>
   new Promise((res, rej) => db.all(sql, params, (e, rows) => (e ? rej(e) : res(rows))));
 const dbGet = (db, sql, params = []) =>
@@ -101,29 +102,106 @@ async function update(req, res) {
 
 async function generateTeams(req, res) {
   const db = req.db;
-  const matchId = req.params.id
+  const matchId = Number(req.params.id);
+  if (!Number.isInteger(matchId)) {
+    return res.status(400).json({ error: "Érvénytelen id" });
+  }
 
   const participiants = await dbAll(
-      db,
-      `SELECT p.id, p.name, p.skill, p.is_goalie
+    db,
+    `SELECT p.id, p.name, p.skill, p.is_goalie
        FROM match_participants mp
               JOIN players p ON p.id = mp.player_id
        WHERE mp.match_id = ?
        ORDER BY p.name`,
-      [matchId]
+    [matchId]
   );
 
-  const result = generateTeamsFor(participiants)
-  const teams = result.teams;
-  teams.forEach((team, i) => {
-    console.log(`Team ${i}`, team.members);
-  });
-  console.dir(teams, { depth: null });
-  console.log("teams type:", typeof teams);
-  console.log("isArray:", Array.isArray(teams));
-  console.log("value:", teams);
+  const result = generateTeamsFor(participiants);
+  if (result.error) {
+    return res.status(400).json(result);
+  }
 
-  res.json(result)
+  const teams = result.teams.map((team, index) => {
+    const players = team.members.map(normalizePlayer);
+    const totalSkill = players.reduce((sum, p) => sum + p.skill, 0);
+    return { teamIndex: index, players, totalSkill };
+  });
+
+  res.json({ teams });
 }
 
-module.exports = { list, create, update, generateTeams };
+async function saveTeams(req, res) {
+  const db = req.db;
+  const matchId = Number(req.params.id);
+  if (!Number.isInteger(matchId)) {
+    return res.status(400).json({ error: "Érvénytelen id" });
+  }
+
+  const { teams } = req.body ?? {};
+  if (!Array.isArray(teams) || teams.length === 0) {
+    return res.status(400).json({ error: "teams kötelező (nem üres tömb)" });
+  }
+
+  const match = await dbGet(db, "SELECT id FROM matches WHERE id = ?", [matchId]);
+  if (!match) {
+    return res.status(404).json({ error: "Nem található meccs" });
+  }
+
+  await dbRun(db, "BEGIN IMMEDIATE");
+  try {
+    await dbRun(db, "DELETE FROM match_teams WHERE match_id = ?", [matchId]);
+
+    for (let i = 0; i < teams.length; i += 1) {
+      const team = teams[i];
+      const players = Array.isArray(team?.players) ? team.players : [];
+      const ins = await dbRun(
+        db,
+        "INSERT INTO match_teams(match_id, team_index) VALUES(?, ?)",
+        [matchId, i]
+      );
+
+      for (const player of players) {
+        if (!Number.isInteger(player?.id)) continue;
+        await dbRun(
+          db,
+          "INSERT OR IGNORE INTO match_participants(match_id, player_id) VALUES(?, ?)",
+          [matchId, player.id]
+        );
+        await dbRun(
+          db,
+          "INSERT OR IGNORE INTO match_team_members(team_id, player_id) VALUES(?, ?)",
+          [ins.lastID, player.id]
+        );
+      }
+    }
+
+    await dbRun(db, "COMMIT");
+  } catch (err) {
+    await dbRun(db, "ROLLBACK");
+    throw err;
+  }
+
+  const storedTeams = await dbAll(
+    db,
+    `SELECT id, match_id, team_index
+       FROM match_teams
+      WHERE match_id = ?
+      ORDER BY team_index, id`,
+    [matchId]
+  );
+  const members = await dbAll(
+    db,
+    `SELECT mtm.team_id, p.id AS player_id, p.name, p.skill, p.is_goalie
+       FROM match_team_members mtm
+       JOIN players p ON p.id = mtm.player_id
+       JOIN match_teams t ON t.id = mtm.team_id
+      WHERE t.match_id = ?
+      ORDER BY p.name`,
+    [matchId]
+  );
+
+  res.status(201).json({ teams: buildTeamsResponse(storedTeams, members) });
+}
+
+module.exports = { list, create, update, generateTeams, saveTeams };

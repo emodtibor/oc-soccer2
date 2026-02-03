@@ -32,5 +32,6 @@ export const api = {
 
   // teams
   getTeams: (matchId) => http("GET", `/matches/${matchId}/teams`),
-  generateTeams: (matchId) => http("POST", `/matches/${matchId}/generate-teams`, {})
+  generateTeams: (matchId) => http("POST", `/matches/${matchId}/generate-teams`, {}),
+  saveGeneratedTeams: (matchId, teams) => http("POST", `/matches/${matchId}/save-teams`, { teams })
 };

@@ -1,4 +1,5 @@
 // controllers/teamsController.js
+const { buildTeamsResponse } = require("../services/teamMapper");
 const dbAll = (db, sql, params = []) =>
   new Promise((res, rej) => db.all(sql, params, (e, rows) => e ? rej(e) : res(rows)));
 const dbGet = (db, sql, params = []) =>
@@ -39,13 +40,7 @@ async function list(req, res) {
     [matchId]
   );
 
-  const byTeam = new Map(teams.map(t => [t.id, { ...t, members: [] }]));
-  for (const m of members) {
-    byTeam.get(m.team_id)?.members.push({
-      id: m.player_id, name: m.name, skill: m.skill, is_goalie: m.is_goalie
-    });
-  }
-  res.json(Array.from(byTeam.values()));
+  res.json(buildTeamsResponse(teams, members));
 }
 
 async function create(req, res) {

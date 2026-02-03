@@ -5,6 +5,7 @@ const { asyncHandler } = require("../utils/http");
 router.get("/", asyncHandler(ctrl.list));
 router.post("/", asyncHandler(ctrl.create));
 router.post("/", asyncHandler(ctrl.update));
+router.post("/:id/save-teams", asyncHandler(ctrl.saveTeams));
 // router.delete("/:id", asyncHandler(ctrl.remove));
 //
 // router.get("/:id/participants", asyncHandler(ctrl.participants));
