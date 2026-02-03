@@ -114,10 +114,16 @@ function renderParticipants(container, players, selectedIds, matchId) {
     const ids = Array.from(idSet);
     if (ids.length === 0) return toast("Nincs kijelölt résztvevő.");
     if (ids.length > 17) return toast("Max 17 résztvevő engedélyezett.");
-    await api.setParticipants(matchId, ids);
-    const teams = await api.generateTeams(matchId);
-    // a Teams fülön fogjuk kirajzolni; itt csak jelzünk
-    toast("Csapatok legenerálva. Nézd meg a Csapatok fülön!");
+    try {
+      await api.setParticipants(matchId, ids);
+      const response = await api.generateTeams(matchId);
+      store.setGeneratedTeams(matchId, response.teams || []);
+      // a Teams fülön fogjuk kirajzolni; itt csak jelzünk
+      toast("Csapatok legenerálva. Nézd meg a Csapatok fülön!");
+    } catch (err) {
+      console.error(err);
+      toast("Nem sikerült csapatokat generálni.");
+    }
   };
 
   container.appendChild(info);
