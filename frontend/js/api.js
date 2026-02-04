@@ -33,5 +33,9 @@ export const api = {
   // teams
   getTeams: (matchId) => http("GET", `/matches/${matchId}/teams`),
   generateTeams: (matchId) => http("POST", `/matches/${matchId}/generate-teams`, {}),
-  saveGeneratedTeams: (matchId, teams) => http("POST", `/matches/${matchId}/save-teams`, { teams })
+  saveGeneratedTeams: (matchId, teams) => http("POST", `/matches/${matchId}/save-teams`, { teams }),
+  createTeam: (matchId, teamIndex) => http("POST", `/matches/${matchId}/teams`, teamIndex != null ? { team_index: teamIndex } : {}),
+  deleteTeam: (matchId, teamId) => http("DELETE", `/matches/${matchId}/teams/${teamId}`),
+  addTeamMember: (matchId, teamId, playerId) => http("POST", `/matches/${matchId}/teams/${teamId}/members`, { player_id: playerId }),
+  removeTeamMember: (matchId, teamId, playerId) => http("DELETE", `/matches/${matchId}/teams/${teamId}/members/${playerId}`)
 };
