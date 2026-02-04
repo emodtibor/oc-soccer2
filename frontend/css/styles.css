@@ -19,4 +19,6 @@ th,td{border-bottom:1px solid #213040;padding:8px;text-align:left}
 .badge{display:inline-block;padding:2px 6px;border:1px solid #213040;border-radius:999px;font-size:12px;color:var(--muted)}
 .team{background:#0e151c;border:1px dashed #2a3c4e;border-radius:10px;padding:8px;margin-bottom:8px}
 .team h3{margin:0 0 6px 0}
+.team-editor{padding:12px}
+.team-editor-body{margin-top:8px}
 .small{font-size:12px;color:var(--muted)}
