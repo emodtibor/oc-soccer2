@@ -77,7 +77,10 @@ function renderMatchList(container, matches, onSelect) {
 
 function renderParticipants(container, players, selectedIds, matchId) {
   clear(container);
-  const info = el(`<div style="margin-bottom:8px" class="small">Max 17 fő. Pipáld ki akik jönnek, majd „Mentés”.</div>`);
+  const MAX_FIELDERS = 15;
+  const MAX_GOALIES = 3;
+  const limitMessage = `Max ${MAX_FIELDERS} mezőnyjátékos és ${MAX_GOALIES} kapus választható.`;
+  const info = el(`<div style="margin-bottom:8px" class="small">${limitMessage} Pipáld ki akik jönnek, majd „Mentés”.</div>`);
   const list = el(`<div style="max-height:400px;overflow:auto;margin-bottom:8px"></div>`);
   const actions = el(`
     <div class="row">
@@ -87,6 +90,27 @@ function renderParticipants(container, players, selectedIds, matchId) {
   `);
 
   const idSet = new Set(selectedIds || []);
+  const playerById = new Map(players.map(p => [p.id, p]));
+  const getCounts = () => {
+    let goalies = 0;
+    let fielders = 0;
+    idSet.forEach(id => {
+      const player = playerById.get(id);
+      if (!player) return;
+      if (player.isGoalie) goalies += 1;
+      else fielders += 1;
+    });
+    return { goalies, fielders };
+  };
+  const validateSelection = () => {
+    const { goalies, fielders } = getCounts();
+    if (goalies > MAX_GOALIES || fielders > MAX_FIELDERS) {
+      toast(limitMessage);
+      return false;
+    }
+    return true;
+  };
+
   players.forEach(p => {
     const row = el(`
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -96,15 +120,22 @@ function renderParticipants(container, players, selectedIds, matchId) {
     `);
     const cb = row.querySelector("input[type=checkbox]");
     cb.onchange = () => {
-      if (cb.checked) { idSet.add(p.id); }
-      else { idSet.delete(p.id); }
+      if (cb.checked) {
+        idSet.add(p.id);
+        if (!validateSelection()) {
+          idSet.delete(p.id);
+          cb.checked = false;
+        }
+      } else {
+        idSet.delete(p.id);
+      }
     };
     list.appendChild(row);
   });
 
   actions.querySelector("#savePartBtn").onclick = async () => {
     const ids = Array.from(idSet);
-    if (ids.length > 17) return toast("Max 17 résztvevő engedélyezett.");
+    if (!validateSelection()) return;
     await api.setParticipants(matchId, ids);
     toast("Résztvevők mentve.");
   };
@@ -113,7 +144,7 @@ function renderParticipants(container, players, selectedIds, matchId) {
     // biztos ami biztos: mentsük a pipákat generálás előtt
     const ids = Array.from(idSet);
     if (ids.length === 0) return toast("Nincs kijelölt résztvevő.");
-    if (ids.length > 17) return toast("Max 17 résztvevő engedélyezett.");
+    if (!validateSelection()) return;
     try {
       await api.setParticipants(matchId, ids);
       const response = await api.generateTeams(matchId);

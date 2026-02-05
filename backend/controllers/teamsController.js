@@ -94,8 +94,33 @@ async function addMember(req, res) {
   if (!Number.isInteger(player_id)) {
     return res.status(400).json({ error: "player_id kötelező (integer)" });
   }
-  const player = await dbGet(db, "SELECT id FROM players WHERE id = ?", [player_id]);
+  const player = await dbGet(db, "SELECT id, is_goalie FROM players WHERE id = ?", [player_id]);
   if (!player) return res.status(404).json({ error: "Nem található játékos" });
+
+  const existingParticipant = await dbGet(
+    db,
+    "SELECT 1 FROM match_participants WHERE match_id = ? AND player_id = ?",
+    [matchId, player_id]
+  );
+  if (!existingParticipant) {
+    const counts = await dbGet(
+      db,
+      `SELECT
+        SUM(CASE WHEN p.is_goalie = 1 THEN 1 ELSE 0 END) AS goalies,
+        SUM(CASE WHEN p.is_goalie = 0 THEN 1 ELSE 0 END) AS fielders
+       FROM match_participants mp
+       JOIN players p ON p.id = mp.player_id
+      WHERE mp.match_id = ?`,
+      [matchId]
+    );
+    const goalies = (counts?.goalies ?? 0) + (player.is_goalie ? 1 : 0);
+    const fielders = (counts?.fielders ?? 0) + (player.is_goalie ? 0 : 1);
+    if (goalies > 3 || fielders > 15) {
+      return res.status(400).json({
+        error: "Max 15 mezőnyjátékos és 3 kapus választható.",
+      });
+    }
+  }
 
   // Egy meccsen belül 1 csapatban legyen a játékos:
   await dbRun(db, "BEGIN IMMEDIATE");

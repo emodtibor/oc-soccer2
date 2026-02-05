@@ -58,9 +58,9 @@ async function add(req, res) {
   // Ellenőrizzük, hogy minden player létezik-e
   const placeholders = uniquePlayerIds.map(() => "?").join(",");
   const existing = await dbAll(
-      db,
-      `SELECT id FROM players WHERE id IN (${placeholders})`,
-      uniquePlayerIds
+    db,
+    `SELECT id, is_goalie FROM players WHERE id IN (${placeholders})`,
+    uniquePlayerIds
   );
 
   const existingIds = new Set(existing.map((r) => r.id));
@@ -70,6 +70,14 @@ async function add(req, res) {
     return res.status(404).json({
       error: "Nem található játékos",
       missingPlayerIds: missingIds,
+    });
+  }
+
+  const goalieCount = existing.filter((p) => p.is_goalie).length;
+  const fielderCount = existing.length - goalieCount;
+  if (goalieCount > 3 || fielderCount > 15) {
+    return res.status(400).json({
+      error: "Max 15 mezőnyjátékos és 3 kapus választható.",
     });
   }
 

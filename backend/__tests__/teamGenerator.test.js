@@ -23,10 +23,22 @@ describe("teamGenerator.generateTeamsFor", () => {
     expect(error).toBeTruthy();
   });
 
-  test("hiba, ha > 17 fő", () => {
-    const players = Array.from({ length: 18 }, (_, i) => P(i + 1, 3));
+  test("hiba, ha túl sok mezőnyjátékos", () => {
+    const players = Array.from({ length: 16 }, (_, i) => P(i + 1, 3));
     const { error } = generateTeamsFor(players);
-    expect(error).toMatch(/Max 17/);
+    expect(error).toMatch(/Max 15 mezőnyjátékos/);
+  });
+
+  test("hiba, ha túl sok kapus", () => {
+    const players = [
+      P(1, 5, true),
+      P(2, 4, true),
+      P(3, 3, true),
+      P(4, 2, true),
+      ...Array.from({ length: 12 }, (_, i) => P(i + 5, 3)),
+    ];
+    const { error } = generateTeamsFor(players);
+    expect(error).toMatch(/Max 15 mezőnyjátékos és 3 kapus/);
   });
 
   test("17 főnél 3 csapat, célméret 6-6-5, két kapus nem lehet együtt", () => {
