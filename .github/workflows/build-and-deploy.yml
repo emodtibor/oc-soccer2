@@ -1,18 +1,22 @@
-name: Deploy to Portainer (digest pinned)
+name: Build (backend+frontend) & Deploy to Portainer
 
 on:
   push:
     branches: ["main"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.portainer.tpl.yml"
+      - ".github/workflows/build-and-deploy.yml"
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # Kell, hogy a "docker buildx imagetools inspect" menjen
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
@@ -23,8 +27,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # --- Digests a registryből (multi-arch manifest digest!) ---
-      - name: Resolve image digests (from registry)
+      # ---- Build & push BACKEND (multi-arch) ----
+      - name: Build & Push Backend (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:latest
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main
+
+      # ---- Build & push FRONTEND (multi-arch) ----
+      - name: Build & Push Frontend (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:latest
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main
+
+      # ---- Resolve digests from registry (manifest digest) ----
+      - name: Resolve image digests (registry)
         id: digests
         run: |
           BACKEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main"
@@ -41,20 +69,24 @@ jobs:
           echo "backend=$BACKEND_DIGEST" >> $GITHUB_OUTPUT
           echo "frontend=$FRONTEND_DIGEST" >> $GITHUB_OUTPUT
 
-      - name: Render compose (digest pinned)
+          echo "Backend digest:  $BACKEND_DIGEST"
+          echo "Frontend digest: $FRONTEND_DIGEST"
+
+      # ---- Render Portainer stack compose (digest pinned) ----
+      - name: Render stack file
         run: |
-          sed -e "s|__BACKEND_DIGEST__|${{ steps.digests.outputs.backend }}|g" \
+          sed -e "s|__DOCKERHUB_USER__|${{ secrets.DOCKERHUB_USERNAME }}|g" \
+              -e "s|__BACKEND_DIGEST__|${{ steps.digests.outputs.backend }}|g" \
               -e "s|__FRONTEND_DIGEST__|${{ steps.digests.outputs.frontend }}|g" \
               docker-compose.portainer.tpl.yml > /tmp/stack.yml
 
           echo "Rendered stack:"
           cat /tmp/stack.yml
 
-      # --- Portainer JWT ---
+      # ---- Portainer JWT ----
       - name: Portainer login (JWT)
         id: portainer
         run: |
-          # -k: self-signed / IP cert esetén kellhet
           TOKEN=$(curl -ksS -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
             -H "Content-Type: application/json" \
             -d '{"Username":"'"${{ secrets.PORTAINER_USERNAME }}"'","Password":"'"${{ secrets.PORTAINER_PASSWORD }}"'"}' \
@@ -67,7 +99,7 @@ jobs:
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      # --- Update Web Editor StackFileContent (stackId=9, endpointId=2) ---
+      # ---- Update Web-editor stack content (stackId=9, endpointId=2) ----
       - name: Update Portainer stack content
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
@@ -80,16 +112,16 @@ jobs:
   )
   
   curl -ksS -X PUT \
-    "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}" \
-      > /tmp/portainer_update_resp.json
+  "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
+-H "Authorization: Bearer ${TOKEN}" \
+-H "Content-Type: application/json" \
+-d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}" \
+  > /tmp/portainer_update.json
 
-  echo "Update response:"
-  cat /tmp/portainer_update_resp.json || true
+  echo "Portainer update response:"
+  cat /tmp/portainer_update.json || true
 
-# --- Deploy ---
+# ---- Deploy ----
 - name: Deploy stack
   env:
     PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
