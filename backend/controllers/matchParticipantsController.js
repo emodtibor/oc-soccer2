@@ -37,12 +37,11 @@ async function add(req, res) {
   const matchId = Number(req.params.matchId);
   const { playerIds } = req.body ?? {};
 
-  await ensureMatch(db, matchId);
-
-  // matchId validáció (opcionális, de hasznos)
   if (!Number.isInteger(matchId)) {
     return res.status(400).json({ error: "matchId érvénytelen" });
   }
+
+  await ensureMatch(db, matchId);
 
   // playerIds validáció
   if (!Array.isArray(playerIds) || playerIds.length === 0) {
@@ -81,13 +80,22 @@ async function add(req, res) {
     });
   }
 
-  // Beszúrások (INSERT OR IGNORE miatt a már meglévők nem hibáznak)
-  for (const playerId of uniquePlayerIds) {
-    await dbRun(
+  await dbRun(db, "BEGIN IMMEDIATE");
+  try {
+    await dbRun(db, "DELETE FROM match_participants WHERE match_id = ?", [matchId]);
+
+    for (const playerId of uniquePlayerIds) {
+      await dbRun(
         db,
         "INSERT OR IGNORE INTO match_participants(match_id, player_id) VALUES(?, ?)",
         [matchId, playerId]
-    );
+      );
+    }
+
+    await dbRun(db, "COMMIT");
+  } catch (err) {
+    await dbRun(db, "ROLLBACK");
+    throw err;
   }
 
   // Visszaadjuk az aktuális listát
