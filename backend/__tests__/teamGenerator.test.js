@@ -41,7 +41,7 @@ describe("teamGenerator.generateTeamsFor", () => {
     expect(error).toMatch(/Max 15 mezőnyjátékos és 3 kapus/);
   });
 
-  test("17 főnél 3 csapat, célméret 6-6-5, két kapus nem lehet együtt", () => {
+  test("17 főnél 3 csapat, csak mezőnyjátékosok kerülnek be, ha nincs 3 kapus", () => {
     // 17 fő, 2 kapus
     const players = [];
     // két kapus kicsit eltérő skillel
@@ -56,14 +56,13 @@ describe("teamGenerator.generateTeamsFor", () => {
     // 3 csapat
     expect(teams).toHaveLength(3);
 
-    // méretek: 6,6,5 (sorrend lehet 6-5-6 stb., de rendezve egyezzen)
+    // méretek: 5,5,5 (csak mezőny, kapusok külön)
     const sizes = teamSizes(teams).sort((a, b) => b - a);
-    expect(sizes).toEqual([6, 6, 5]);
+    expect(sizes).toEqual([5, 5, 5]);
 
-    // kapusok külön csapatban
+    // kapusok nem kerülnek csapatba
     const gCounts = goaliesPerTeam(teams);
-    expect(sum(gCounts)).toBe(2);
-    gCounts.forEach(cnt => expect(cnt <= 1).toBe(true));
+    expect(sum(gCounts)).toBe(0);
   });
 
   test("kevesebb mint 17 főnél 2 csapat (pl. 12 -> 6-6)", () => {
@@ -97,7 +96,7 @@ describe("teamGenerator.generateTeamsFor", () => {
     gCounts.forEach(cnt => expect(cnt <= 1).toBe(true));
   });
 
-  test("több kapusnál max 1 csapatonként (extra kapusok mezőnyként mennek)", () => {
+  test("több kapusnál nem kerülnek csapatba, ha nem egyezik a csapatok számával", () => {
     const players = [
       P(1, 5, true),
       P(2, 4, true),
@@ -106,8 +105,8 @@ describe("teamGenerator.generateTeamsFor", () => {
     ];
     const { teams } = generateTeamsFor(players);
     const gCounts = goaliesPerTeam(teams);
-    // két csapat → max 1-1 kapus jelölés/elosztás; a 3. "kapus" mezőnyként kerül be valamelyikbe
-    expect(gCounts.every(x => x <= 1)).toBe(true);
+    // két csapat → mivel 3 kapus van, egyik sem kerül csapatba
+    expect(sum(gCounts)).toBe(0);
   });
 
   test("skill kiegyenlítés: össz-skill különbség ne legyen túl nagy (heurisztikus ellenőrzés)", () => {
