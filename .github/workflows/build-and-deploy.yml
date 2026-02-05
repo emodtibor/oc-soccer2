@@ -53,20 +53,35 @@ jobs:
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:latest
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main
 
-      - name: Resolve image digests (registry manifest)
+      - name: Resolve image digests (registry manifest, robust)
         id: digests
         run: |
           set -euo pipefail
+
           BACKEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main"
           FRONTEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main"
 
-          BACKEND_DIGEST="$(docker buildx imagetools inspect "$BACKEND_IMAGE" --format '{{.Descriptor.Digest}}')"
-          FRONTEND_DIGEST="$(docker buildx imagetools inspect "$FRONTEND_IMAGE" --format '{{.Descriptor.Digest}}')"
+          resolve_digest () {
+            local ref="$1"
+            local d=""
 
-          if [ -z "$BACKEND_DIGEST" ] || [ -z "$FRONTEND_DIGEST" ]; then
-            echo "Failed to resolve digests"
-            exit 1
-          fi
+            # 1) buildx template (newer)
+            d="$(docker buildx imagetools inspect "$ref" --format '{{.Descriptor.Digest}}' 2>/dev/null || true)"
+            if [ -n "$d" ]; then echo "$d"; return 0; fi
+
+            # 2) alternative template (some versions)
+            d="$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+            if [ -n "$d" ]; then echo "$d"; return 0; fi
+
+            # 3) parse plain output
+            d="$(docker buildx imagetools inspect "$ref" 2>/dev/null | awk '/^Digest:/ {print $2; exit}')"
+            if [ -n "$d" ]; then echo "$d"; return 0; fi
+
+            return 1
+          }
+
+          BACKEND_DIGEST="$(resolve_digest "$BACKEND_IMAGE")" || (echo "Cannot resolve digest for $BACKEND_IMAGE" && exit 1)
+          FRONTEND_DIGEST="$(resolve_digest "$FRONTEND_IMAGE")" || (echo "Cannot resolve digest for $FRONTEND_IMAGE" && exit 1)
 
           echo "backend=$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
           echo "frontend=$FRONTEND_DIGEST" >> "$GITHUB_OUTPUT"
