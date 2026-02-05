@@ -1,0 +1,102 @@
+name: Deploy to Portainer (digest pinned)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Kell, hogy a "docker buildx imagetools inspect" menjen
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- Digests a registryből (multi-arch manifest digest!) ---
+      - name: Resolve image digests (from registry)
+        id: digests
+        run: |
+          BACKEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main"
+          FRONTEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main"
+
+          BACKEND_DIGEST=$(docker buildx imagetools inspect "$BACKEND_IMAGE" --format '{{.Digest}}')
+          FRONTEND_DIGEST=$(docker buildx imagetools inspect "$FRONTEND_IMAGE" --format '{{.Digest}}')
+
+          if [ -z "$BACKEND_DIGEST" ] || [ -z "$FRONTEND_DIGEST" ]; then
+            echo "Failed to resolve digests"
+            exit 1
+          fi
+
+          echo "backend=$BACKEND_DIGEST" >> $GITHUB_OUTPUT
+          echo "frontend=$FRONTEND_DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Render compose (digest pinned)
+        run: |
+          sed -e "s|__BACKEND_DIGEST__|${{ steps.digests.outputs.backend }}|g" \
+              -e "s|__FRONTEND_DIGEST__|${{ steps.digests.outputs.frontend }}|g" \
+              docker-compose.portainer.tpl.yml > /tmp/stack.yml
+
+          echo "Rendered stack:"
+          cat /tmp/stack.yml
+
+      # --- Portainer JWT ---
+      - name: Portainer login (JWT)
+        id: portainer
+        run: |
+          # -k: self-signed / IP cert esetén kellhet
+          TOKEN=$(curl -ksS -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
+            -H "Content-Type: application/json" \
+            -d '{"Username":"'"${{ secrets.PORTAINER_USERNAME }}"'","Password":"'"${{ secrets.PORTAINER_PASSWORD }}"'"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('jwt',''))")
+
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to obtain Portainer JWT"
+            exit 1
+          fi
+
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      # --- Update Web Editor StackFileContent (stackId=9, endpointId=2) ---
+      - name: Update Portainer stack content
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+        run: |
+          STACK_JSON=$(python3 - <<'PY'
+  import json
+  print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))
+  PY
+  )
+  
+  curl -ksS -X PUT \
+    "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}" \
+      > /tmp/portainer_update_resp.json
+
+  echo "Update response:"
+  cat /tmp/portainer_update_resp.json || true
+
+# --- Deploy ---
+- name: Deploy stack
+  env:
+    PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+    TOKEN: ${{ steps.portainer.outputs.token }}
+  run: |
+    curl -ksS -X POST \
+      "${PORTAINER_URL}/api/stacks/9/deploy?endpointId=2" \
+      -H "Authorization: Bearer ${TOKEN}"
+    
+    echo "Deploy triggered."

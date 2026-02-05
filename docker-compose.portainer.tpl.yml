@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  backend:
+    image: docker.io/emodtibor/oc-soccer-backend@sha256:__BACKEND_DIGEST__
+    ports:
+      - "3000:3000"
+    volumes:
+      - /srv/oc-soccer/backend/data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: docker.io/emodtibor/oc-soccer-frontend@sha256:__FRONTEND_DIGEST__
+    ports:
+      - "84:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
