@@ -12,16 +12,19 @@ exports.generateTeamsFor = (players = []) => {
   }
 
   const teamCount = (players.length >= 17) ? 3 : 2;
-  const targets = splitTargets(players.length, teamCount);
-
   const goaliesAll = players.filter(p => p.is_goalie);
   const fielders = players.filter(p => !p.is_goalie);
+  const includeGoalies = goaliesAll.length === teamCount;
+  const poolPlayers = includeGoalies ? players : fielders;
+  const targets = splitTargets(poolPlayers.length, teamCount);
 
   // Csapat célok
   const teams = targets.map(t => ({ members: [], sum: 0, hasGoalie: false, target: t }));
 
   // 1) "Elsődleges" kapusok: legfeljebb 1/csapat (kiválasztjuk a top N-t)
-  const primaryGoalies = goaliesAll.slice().sort((a,b)=>b.skill-a.skill).slice(0, teamCount);
+  const primaryGoalies = includeGoalies
+    ? goaliesAll.slice().sort((a,b)=>b.skill-a.skill).slice(0, teamCount)
+    : [];
 
   // Rakjuk le őket külön csapatokba (körbeforgással, célméretet figyelve)
   primaryGoalies.forEach((g, idx) => {
@@ -44,7 +47,9 @@ exports.generateTeamsFor = (players = []) => {
   });
 
   // 2) Extra kapusok MEZŐNYKÉNT (ne növeljék a kapus-számot a csapatokban)
-  const extraGoaliesAsField = goaliesAll.slice(teamCount).map(g => ({ ...g, is_goalie: 0 }));
+  const extraGoaliesAsField = includeGoalies
+    ? goaliesAll.slice(teamCount).map(g => ({ ...g, is_goalie: 0 }))
+    : [];
 
   // 3) Maradék játékosok kiosztása skill szerinti greedy kiegyenlítéssel
   const rest = [...extraGoaliesAsField, ...fielders].sort((a,b)=>b.skill-a.skill);
