@@ -5,9 +5,13 @@ function splitTargets(n, k){
 
 exports.generateTeamsFor = (players = []) => {
   if (!players.length) return { error: "Nincs résztvevő." };
-  if (players.length > 17) return { error: "Max 17 résztvevő." };
+  const goaliesCount = players.filter(p => p.is_goalie).length;
+  const fieldersCount = players.length - goaliesCount;
+  if (goaliesCount > 3 || fieldersCount > 15) {
+    return { error: "Max 15 mezőnyjátékos és 3 kapus választható." };
+  }
 
-  const teamCount = (players.length === 17) ? 3 : 2;
+  const teamCount = (players.length >= 17) ? 3 : 2;
   const targets = splitTargets(players.length, teamCount);
 
   const goaliesAll = players.filter(p => p.is_goalie);
