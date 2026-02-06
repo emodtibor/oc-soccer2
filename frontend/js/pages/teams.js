@@ -75,19 +75,55 @@ export async function renderTeams(root) {
   renderTeamsEditor(wrap, root, savedTeams, players);
 }
 
+const TEAM_NAMES_BY_COUNT = {
+  2: ["Fekete", "Fehér"],
+  3: ["Fekete", "Fehér", "Megküli"]
+};
+
+function getTeamName(teamIndex, teamCount) {
+  const names = TEAM_NAMES_BY_COUNT[teamCount];
+  return names?.[teamIndex] ?? `Csapat ${teamIndex + 1}`;
+}
+
 function renderTeamsList(container, teams, title) {
   const header = el(`<div class="small" style="margin:12px 0 6px 0;">${title}</div>`);
   container.appendChild(header);
 
+  const goaliePlayers = teams.flatMap(team =>
+    team.players
+      .filter(player => player.isGoalie)
+      .map(player => ({ ...player, teamIndex: team.teamIndex }))
+  );
+  const showGoaliesSeparate = teams.length === 3 && goaliePlayers.length === 2;
+
+  if (showGoaliesSeparate) {
+    const goalieCard = el(`
+      <div class="team">
+        <h3>Kapusok</h3>
+        <div></div>
+      </div>
+    `);
+    const goalieList = goalieCard.querySelector("div");
+    goaliePlayers.forEach(player => {
+      const teamName = getTeamName(player.teamIndex, teams.length);
+      goalieList.appendChild(
+        el(`<div>${player.name} ${fmtSkill(player.skill)} ${goalieBadge(player.isGoalie)} <span class="small">(${teamName})</span></div>`)
+      );
+    });
+    container.appendChild(goalieCard);
+  }
+
   teams.forEach(t => {
+    const teamName = getTeamName(t.teamIndex, teams.length);
     const card = el(`
       <div class="team">
-        <h3>Csapat ${t.teamIndex + 1} <span class="small">(össz-skill: ${t.totalSkill})</span></h3>
+        <h3>${teamName} <span class="small">(össz-skill: ${t.totalSkill})</span></h3>
         <div></div>
       </div>
     `);
     const list = card.querySelector("div");
-    t.players.forEach(p => {
+    const teamPlayers = showGoaliesSeparate ? t.players.filter(p => !p.isGoalie) : t.players;
+    teamPlayers.forEach(p => {
       list.appendChild(el(`<div>${p.name} ${fmtSkill(p.skill)} ${goalieBadge(p.isGoalie)}</div>`));
     });
     container.appendChild(card);
@@ -123,11 +159,12 @@ function renderTeamsEditor(container, root, teams, players) {
   };
 
   teams.forEach(team => {
+    const teamName = getTeamName(team.teamIndex, teams.length);
     const card = el(`
       <div class="team">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <div>
-            <strong>Csapat ${team.teamIndex + 1}</strong>
+            <strong>${teamName}</strong>
             <span class="small">(össz-skill: ${team.totalSkill})</span>
           </div>
           <button data-action="delete">Törlés</button>
