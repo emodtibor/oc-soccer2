@@ -128,7 +128,9 @@ async function generateTeams(req, res) {
     return { teamIndex: index, players, totalSkill };
   });
 
-  res.json({ teams });
+  await persistTeams(db, matchId, teams);
+  const storedTeams = await loadTeams(db, matchId);
+  res.status(201).json({ teams: storedTeams });
 }
 
 async function saveTeams(req, res) {
@@ -148,6 +150,12 @@ async function saveTeams(req, res) {
     return res.status(404).json({ error: "Nem található meccs" });
   }
 
+  await persistTeams(db, matchId, teams);
+  const storedTeams = await loadTeams(db, matchId);
+  res.status(201).json({ teams: storedTeams });
+}
+
+async function persistTeams(db, matchId, teams) {
   await dbRun(db, "BEGIN IMMEDIATE");
   try {
     await dbRun(db, "DELETE FROM match_teams WHERE match_id = ?", [matchId]);
@@ -181,7 +189,9 @@ async function saveTeams(req, res) {
     await dbRun(db, "ROLLBACK");
     throw err;
   }
+}
 
+async function loadTeams(db, matchId) {
   const storedTeams = await dbAll(
     db,
     `SELECT id, match_id, team_index
@@ -200,8 +210,7 @@ async function saveTeams(req, res) {
       ORDER BY p.name`,
     [matchId]
   );
-
-  res.status(201).json({ teams: buildTeamsResponse(storedTeams, members) });
+  return buildTeamsResponse(storedTeams, members);
 }
 
 module.exports = { list, create, update, generateTeams, saveTeams };

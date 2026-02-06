@@ -151,9 +151,11 @@ function renderParticipants(container, players, selectedIds, matchId, teamsPanel
     if (!validateSelection()) return;
     try {
       await api.setParticipants(matchId, ids);
-      const response = await api.generateTeams(matchId);
-      store.setGeneratedTeams(matchId, response.teams || []);
+      const saved = await api.generateTeams(matchId);
+      store.clearGeneratedTeams();
+      store.setTeams(saved.teams || []);
       await renderTeams(teamsPanel);
+      toast("Generált csapatok mentve.");
     } catch (err) {
       console.error(err);
       toast("Nem sikerült csapatokat generálni.");
