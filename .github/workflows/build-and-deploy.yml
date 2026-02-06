@@ -75,6 +75,18 @@ jobs:
           echo "Backend digest:  $BACKEND_DIGEST"
           echo "Frontend digest: $FRONTEND_DIGEST"
 
+      # Generate Portainer stack file from template
+      # Replace digest placeholders in docker-compose.portainer.tpl.yml and write to /tmp/stack.yml
+      - name: Generate stack file
+        run: |
+          set -euo pipefail
+          # Substitute digest placeholders with actual digests from previous step
+          sed "s/__BACKEND_DIGEST__/${{ steps.digests.outputs.backend }}/g; s/__FRONTEND_DIGEST__/${{ steps.digests.outputs.frontend }}/g" \
+            docker-compose.portainer.tpl.yml > /tmp/stack.yml
+          # Print the resulting stack file for debugging
+          echo "Generated /tmp/stack.yml:"
+          cat /tmp/stack.yml
+
       - name: Portainer login (JWT)
         id: portainer
         run: |
