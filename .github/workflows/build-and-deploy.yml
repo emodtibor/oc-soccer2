@@ -32,6 +32,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build & Push Backend (multi-arch)
+        id: build_backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -43,6 +44,7 @@ jobs:
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main
 
       - name: Build & Push Frontend (multi-arch)
+        id: build_frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
@@ -53,33 +55,25 @@ jobs:
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:latest
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main
 
-      - name: Resolve image digests (registry manifest, safe)
+      # Resolve digests from outputs of build steps
+      - name: Resolve image digests (from build outputs)
         id: digests
         run: |
           set -euo pipefail
-
-          BACKEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-backend:main"
-          FRONTEND_IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/oc-soccer-frontend:main"
-
-          # Csak a "Digest:" sort kérjük ki (1 darab sha256...), minden mást eldobunk
-          BACKEND_DIGEST="$(docker buildx imagetools inspect "$BACKEND_IMAGE" 2>/dev/null | awk '/^Digest:/ {print $2; exit}')"
-          FRONTEND_DIGEST="$(docker buildx imagetools inspect "$FRONTEND_IMAGE" 2>/dev/null | awk '/^Digest:/ {print $2; exit}')"
-
-          if [[ ! "$BACKEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          BACKEND_DIGEST="${{ steps.build_backend.outputs.digest }}"
+          FRONTEND_DIGEST="${{ steps.build_frontend.outputs.digest }}"
+          if [[ -z "$BACKEND_DIGEST" || ! "$BACKEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Invalid backend digest: $BACKEND_DIGEST"
             exit 1
           fi
-          if [[ ! "$FRONTEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          if [[ -z "$FRONTEND_DIGEST" || ! "$FRONTEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Invalid frontend digest: $FRONTEND_DIGEST"
             exit 1
           fi
-
           echo "backend=$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
           echo "frontend=$FRONTEND_DIGEST" >> "$GITHUB_OUTPUT"
-
           echo "Backend digest:  $BACKEND_DIGEST"
           echo "Frontend digest: $FRONTEND_DIGEST"
-      
 
       - name: Portainer login (JWT)
         id: portainer
