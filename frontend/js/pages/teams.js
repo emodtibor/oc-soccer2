@@ -9,7 +9,7 @@ export async function renderTeams(root) {
   const panel = el(`
     <div class="panel">
       <h2>Csapatok</h2>
-      <div id="teamsWrap" class="small">Válassz meccset a „Meccsek” fülön, majd generálj csapatokat.</div>
+      <div id="teamsWrap" class="small">Válassz meccset a listából, majd generálj csapatokat.</div>
     </div>
   `);
   root.appendChild(panel);

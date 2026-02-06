@@ -1,9 +1,10 @@
 // frontend/js/pages/matches.js
 import { api } from "../api.js";
 import { store } from "../store.js";
+import { renderTeams } from "./teams.js";
 import { el, clear, toast, fmtSkill, goalieBadge } from "../ui.js";
 
-export async function renderMatches(root, onSelectedChange) {
+export async function renderMatches(root) {
   clear(root);
 
   const panel = el(`
@@ -25,6 +26,7 @@ export async function renderMatches(root, onSelectedChange) {
           <div id="participantsWrap" class="small">Válassz meccset a listából!</div>
         </div>
       </div>
+      <div id="teamsPanel" style="margin-top:20px;"></div>
     </div>
   `);
 
@@ -37,14 +39,16 @@ export async function renderMatches(root, onSelectedChange) {
 
   // Meccslista
   const mList = panel.querySelector("#matchesList");
+  const teamsPanel = panel.querySelector("#teamsPanel");
   renderMatchList(mList, matches, async (matchId) => {
     store.setCurrentMatch(matchId);
-    onSelectedChange?.(matchId);
     const current = await api.getParticipants(matchId);
     const ids = current.map(p => p.id);
     store.setParticipants(ids);
-    renderParticipants(panel.querySelector("#participantsWrap"), players, ids, matchId);
+    renderParticipants(panel.querySelector("#participantsWrap"), players, ids, matchId, teamsPanel);
+    await renderTeams(teamsPanel);
   });
+  await renderTeams(teamsPanel);
 
   // Új meccs
   panel.querySelector("#addMatchBtn").onclick = async () => {
@@ -75,7 +79,7 @@ function renderMatchList(container, matches, onSelect) {
   container.appendChild(ul);
 }
 
-function renderParticipants(container, players, selectedIds, matchId) {
+function renderParticipants(container, players, selectedIds, matchId, teamsPanel) {
   clear(container);
   const MAX_FIELDERS = 15;
   const MAX_GOALIES = 3;
@@ -149,8 +153,7 @@ function renderParticipants(container, players, selectedIds, matchId) {
       await api.setParticipants(matchId, ids);
       const response = await api.generateTeams(matchId);
       store.setGeneratedTeams(matchId, response.teams || []);
-      // a Teams fülön fogjuk kirajzolni; itt csak jelzünk
-      toast("Csapatok legenerálva. Nézd meg a Csapatok fülön!");
+      await renderTeams(teamsPanel);
     } catch (err) {
       console.error(err);
       toast("Nem sikerült csapatokat generálni.");
