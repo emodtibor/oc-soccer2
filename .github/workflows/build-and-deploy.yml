@@ -106,15 +106,23 @@ jobs:
 
           STACK_JSON="$(python3 -c 'import json; print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))')"
 
-          curl -ksS -X PUT \
-            "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
+          echo "Calling Portainer PUT /api/stacks/9?endpointId=2 ..."
+          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_update_body.txt -w "%{http_code}" \
+            -X PUT "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}" \
-            > /tmp/portainer_update.json
+            || true)
 
-          echo "Portainer update response:"
-          cat /tmp/portainer_update.json || true
+          echo "HTTP $HTTP_CODE"
+          echo "Body:"
+          cat /tmp/portainer_update_body.txt || true
+
+          # Portainer jellemzően 200/204-et ad sikerre
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "204" ]; then
+            echo "Portainer stack update failed."
+            exit 1
+          fi
 
       - name: Deploy stack (stackId=9, endpointId=2)
         env:
@@ -122,8 +130,20 @@ jobs:
           TOKEN: ${{ steps.portainer.outputs.token }}
         run: |
           set -euo pipefail
-          curl -ksS -X POST \
-            "${PORTAINER_URL}/api/stacks/9/deploy?endpointId=2" \
-            -H "Authorization: Bearer ${TOKEN}"
+
+          echo "Calling Portainer POST /api/stacks/9/deploy?endpointId=2 ..."
+          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_deploy_body.txt -w "%{http_code}" \
+            -X POST "${PORTAINER_URL}/api/stacks/9/deploy?endpointId=2" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            || true)
+
+          echo "HTTP $HTTP_CODE"
+          echo "Body:"
+          cat /tmp/portainer_deploy_body.txt || true
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "204" ]; then
+            echo "Portainer deploy failed."
+            exit 1
+          fi
 
           echo "Deploy triggered."
