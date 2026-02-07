@@ -22,3 +22,18 @@ th,td{border-bottom:1px solid #213040;padding:8px;text-align:left}
 .team-editor{padding:12px}
 .team-editor-body{margin-top:8px}
 .small{font-size:12px;color:var(--muted)}
+.game-actions h3{margin:0 0 8px 0}
+.game-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.game-card{display:flex;flex-direction:column;gap:12px}
+.game-score{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.score-pill{background:#0e151c;border:1px solid #213040;border-radius:999px;padding:6px 10px;font-weight:600}
+.game-goals{display:flex;flex-direction:column;gap:6px}
+.goal-row{display:flex;gap:8px;align-items:center}
+.game-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.own-goal-toggle{display:flex;gap:6px;align-items:center}
+@media (max-width: 720px) {
+  .row{flex-direction:column;align-items:stretch}
+  .game-score{flex-direction:column;align-items:flex-start}
+  .game-form{flex-direction:column;align-items:stretch}
+  .score-pill{align-self:flex-start}
+}

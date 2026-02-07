@@ -25,11 +25,13 @@ async function start() {
   const matchesRoutes = require("./routes/matches");
   const matchParticipantsRoutes = require("./routes/matchParticipants");
   const teamsRoutes = require("./routes/teams");
+  const matchGamesRoutes = require("./routes/matchGames");
 
   app.use("/matches", teamsRoutes);
   app.use("/matches", matchParticipantsRoutes);
   app.use("/players", playersRoutes);
   app.use("/matches", matchesRoutes);
+  app.use("/", matchGamesRoutes);
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

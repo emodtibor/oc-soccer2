@@ -105,6 +105,53 @@ const migrations = [
       }
     },
   },
+  {
+    id: 3,
+    name: "add_match_games_and_goals",
+    up: async (db) => {
+      await runAsync(
+        db,
+        `
+        CREATE TABLE IF NOT EXISTS match_games (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          match_id INTEGER NOT NULL,
+          home_team_id INTEGER NOT NULL,
+          away_team_id INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+          FOREIGN KEY (home_team_id) REFERENCES match_teams(id) ON DELETE CASCADE,
+          FOREIGN KEY (away_team_id) REFERENCES match_teams(id) ON DELETE CASCADE
+        );
+        `
+      );
+
+      await runAsync(
+        db,
+        `
+        CREATE TABLE IF NOT EXISTS match_game_goals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          game_id INTEGER NOT NULL,
+          scoring_team_id INTEGER NOT NULL,
+          scorer_player_id INTEGER,
+          is_own_goal INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (game_id) REFERENCES match_games(id) ON DELETE CASCADE,
+          FOREIGN KEY (scoring_team_id) REFERENCES match_teams(id) ON DELETE CASCADE,
+          FOREIGN KEY (scorer_player_id) REFERENCES players(id) ON DELETE SET NULL
+        );
+        `
+      );
+
+      await runAsync(
+        db,
+        `CREATE INDEX IF NOT EXISTS idx_match_games_match ON match_games(match_id);`
+      );
+      await runAsync(
+        db,
+        `CREATE INDEX IF NOT EXISTS idx_match_game_goals_game ON match_game_goals(game_id);`
+      );
+    },
+  },
 
   // ide jöhetnek későbbi migrációk (id: 3, 4, ...)
 ];

@@ -37,5 +37,12 @@ export const api = {
   createTeam: (matchId, teamIndex) => http("POST", `/matches/${matchId}/teams`, teamIndex != null ? { team_index: teamIndex } : {}),
   deleteTeam: (matchId, teamId) => http("DELETE", `/matches/${matchId}/teams/${teamId}`),
   addTeamMember: (matchId, teamId, playerId) => http("POST", `/matches/${matchId}/teams/${teamId}/members`, { player_id: playerId }),
-  removeTeamMember: (matchId, teamId, playerId) => http("DELETE", `/matches/${matchId}/teams/${teamId}/members/${playerId}`)
+  removeTeamMember: (matchId, teamId, playerId) => http("DELETE", `/matches/${matchId}/teams/${teamId}/members/${playerId}`),
+
+  // games
+  listMatchGames: (matchId) => http("GET", `/matches/${matchId}/games`),
+  createMatchGame: (matchId, homeTeamId, awayTeamId) =>
+    http("POST", `/matches/${matchId}/games`, { home_team_id: homeTeamId, away_team_id: awayTeamId }),
+  createMatchGamesAuto: (matchId) => http("POST", `/matches/${matchId}/games/auto`, {}),
+  addGameGoal: (gameId, payload) => http("POST", `/games/${gameId}/goals`, payload),
 };
