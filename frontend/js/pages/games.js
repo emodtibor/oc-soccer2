@@ -19,8 +19,15 @@ function buildTeamOptions(teams) {
     .join("");
 }
 
-function buildPlayerOptions(players) {
-  return players.map(player => `<option value="${player.id}">${player.name}</option>`).join("");
+function buildScorerOptions(players) {
+  const playerOptions = players
+    .map(player => `<option value="${player.id}">${player.name}</option>`)
+    .join("");
+  return `
+    <option value="">Gólszerző…</option>
+    ${playerOptions}
+    <option value="own-goal">Öngól</option>
+  `;
 }
 
 export async function renderGames(root) {
@@ -121,10 +128,6 @@ async function renderMatchGames(container, matchId) {
 
   const teamsById = new Map(teams.map(team => [team.id, team]));
   const teamCount = teams.length;
-  const playerTeamMap = new Map();
-  teams.forEach(team => {
-    team.players.forEach(player => playerTeamMap.set(player.id, team.id));
-  });
 
   const gamesWrap = el(`<div class="game-grid"></div>`);
 
@@ -162,7 +165,7 @@ async function renderMatchGames(container, matchId) {
       goalsWrap.appendChild(el(`<div class="small">Még nincs gól.</div>`));
     } else {
       game.goals.forEach(goal => {
-        const scorer = goal.scorer_name ?? "Ismeretlen";
+        const scorer = goal.is_own_goal ? "Öngól" : (goal.scorer_name ?? "Ismeretlen");
         const teamLabel = goal.scoring_team_id === game.home_team_id ? homeName : awayName;
         const ownGoalTag = goal.is_own_goal ? " (öngól)" : "";
         goalsWrap.appendChild(
@@ -172,57 +175,50 @@ async function renderMatchGames(container, matchId) {
     }
 
     const form = card.querySelector(".game-form");
-    const homePlayers = homeTeam?.players ?? [];
-    const awayPlayers = awayTeam?.players ?? [];
-    const allPlayers = [...homePlayers, ...awayPlayers];
     form.innerHTML = `
-      <select class="input scorer-select">
-        <option value="">Gólszerző…</option>
-        ${buildPlayerOptions(allPlayers)}
-      </select>
       <select class="input scoring-team-select">
         <option value="${game.home_team_id}">${homeName}</option>
         <option value="${game.away_team_id}">${awayName}</option>
       </select>
-      <label class="small own-goal-toggle">
-        <input type="checkbox" />
-        Öngól
-      </label>
+      <select class="input scorer-select"></select>
       <button class="primary add-goal-btn">Gól hozzáadása</button>
     `;
 
     const scorerSelect = form.querySelector(".scorer-select");
     const teamSelect = form.querySelector(".scoring-team-select");
-    const ownGoalToggle = form.querySelector(".own-goal-toggle input");
     const addGoalBtn = form.querySelector(".add-goal-btn");
 
-    const updateTeamSelectForOwnGoal = () => {
-      const scorerId = Number(scorerSelect.value);
-      const scorerTeamId = playerTeamMap.get(scorerId);
-      if (!ownGoalToggle.checked) {
-        teamSelect.disabled = false;
-        return;
-      }
-      teamSelect.disabled = true;
-      if (scorerTeamId === game.home_team_id) {
-        teamSelect.value = String(game.away_team_id);
-      } else if (scorerTeamId === game.away_team_id) {
-        teamSelect.value = String(game.home_team_id);
-      }
+    const updateScorerOptions = () => {
+      const selectedTeamId = Number(teamSelect.value);
+      const selectedTeam = teamsById.get(selectedTeamId);
+      const teamPlayers = selectedTeam?.players ?? [];
+      scorerSelect.innerHTML = buildScorerOptions(teamPlayers);
     };
 
-    scorerSelect.onchange = updateTeamSelectForOwnGoal;
-    ownGoalToggle.onchange = updateTeamSelectForOwnGoal;
+    teamSelect.onchange = updateScorerOptions;
+    updateScorerOptions();
 
     addGoalBtn.onclick = async () => {
-      const scorerId = Number(scorerSelect.value);
-      if (!scorerId) {
+      const selectedTeamId = Number(teamSelect.value);
+      if (!selectedTeamId) {
+        return toast("Válassz csapatot.");
+      }
+      const scorerValue = scorerSelect.value;
+      if (!scorerValue) {
         return toast("Válassz gólszerzőt.");
       }
+      const isOwnGoal = scorerValue === "own-goal";
+      const scorerId = isOwnGoal ? null : Number(scorerValue);
+      if (!isOwnGoal && !scorerId) {
+        return toast("Válassz gólszerzőt.");
+      }
+      const scoringTeamId = isOwnGoal
+        ? (selectedTeamId === game.home_team_id ? game.away_team_id : game.home_team_id)
+        : selectedTeamId;
       const payload = {
-        scoring_team_id: Number(teamSelect.value),
+        scoring_team_id: scoringTeamId,
         scorer_player_id: scorerId,
-        is_own_goal: ownGoalToggle.checked,
+        is_own_goal: isOwnGoal,
       };
       try {
         await api.addGameGoal(game.id, payload);
