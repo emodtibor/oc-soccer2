@@ -40,14 +40,15 @@ export async function renderMatches(root) {
   // Meccslista
   const mList = panel.querySelector("#matchesList");
   const teamsPanel = panel.querySelector("#teamsPanel");
-  renderMatchList(mList, matches, async (matchId) => {
+  const handleMatchSelect = async (matchId) => {
     store.setCurrentMatch(matchId);
     const current = await api.getParticipants(matchId);
     const ids = current.map(p => p.id);
     store.setParticipants(ids);
     renderParticipants(panel.querySelector("#participantsWrap"), players, ids, matchId, teamsPanel);
     await renderTeams(teamsPanel);
-  });
+  };
+  renderMatchList(mList, matches, handleMatchSelect);
   await renderTeams(teamsPanel);
 
   // Új meccs
@@ -58,7 +59,7 @@ export async function renderMatches(root) {
     const m = await api.createMatch({ date, location });
     const ms = await api.listMatches();
     store.setMatches(ms);
-    renderMatchList(mList, ms);
+    renderMatchList(mList, ms, handleMatchSelect);
     panel.querySelector("#mDate").value = "";
     panel.querySelector("#mLoc").value = "";
   };
