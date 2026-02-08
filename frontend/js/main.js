@@ -2,12 +2,14 @@
 import { renderPlayers } from "./pages/players.js";
 import { renderMatches } from "./pages/matches.js";
 import { renderGames } from "./pages/games.js";
+import { renderStats } from "./pages/stats.js";
 
 const tabs = document.querySelectorAll(".tabs button");
 const sections = {
   players: document.getElementById("tab-players"),
   matches: document.getElementById("tab-matches"),
   games: document.getElementById("tab-games"),
+  stats: document.getElementById("tab-stats"),
 };
 
 function activateTab(name) {
@@ -30,6 +32,8 @@ async function init() {
         await renderMatches(sections.matches);
       } else if (b.dataset.tab === "games") {
         await renderGames(sections.games);
+      } else if (b.dataset.tab === "stats") {
+        await renderStats(sections.stats);
       }
     };
   });
@@ -37,6 +41,7 @@ async function init() {
   // első betöltésnél töltsük a meccsek oldalt is (hogy azonnal választható legyen)
   await renderMatches(sections.matches);
   await renderGames(sections.games);
+  await renderStats(sections.stats);
 }
 
 init();
