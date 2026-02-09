@@ -29,6 +29,7 @@ th,td{border-bottom:1px solid #213040;padding:8px;text-align:left}
 .score-pill{background:#0e151c;border:1px solid #213040;border-radius:999px;padding:6px 10px;font-weight:600}
 .game-goals{display:flex;flex-direction:column;gap:6px}
 .goal-row{display:flex;gap:8px;align-items:center}
+.goal-row .goal-delete{margin-left:auto;padding:4px 8px;font-size:12px}
 .game-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .own-goal-toggle{display:flex;gap:6px;align-items:center}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
