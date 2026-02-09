@@ -168,9 +168,22 @@ async function renderMatchGames(container, matchId) {
         const scorer = goal.is_own_goal ? "Öngól" : (goal.scorer_name ?? "Ismeretlen");
         const teamLabel = goal.scoring_team_id === game.home_team_id ? homeName : awayName;
         const ownGoalTag = goal.is_own_goal ? " (öngól)" : "";
-        goalsWrap.appendChild(
-          el(`<div class="goal-row">⚽ ${scorer} <span class="small">· ${teamLabel}${ownGoalTag}</span></div>`)
-        );
+        const row = el(`
+          <div class="goal-row">
+            <span>⚽ ${scorer} <span class="small">· ${teamLabel}${ownGoalTag}</span></span>
+            <button class="goal-delete" type="button" title="Gól törlése">Törlés</button>
+          </div>
+        `);
+        row.querySelector(".goal-delete").onclick = async () => {
+          try {
+            await api.deleteGameGoal(game.id, goal.id);
+            await renderMatchGames(container, matchId);
+          } catch (err) {
+            console.error(err);
+            toast("Nem sikerült törölni a gólt.");
+          }
+        };
+        goalsWrap.appendChild(row);
       });
     }
 

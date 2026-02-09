@@ -263,4 +263,34 @@ async function addGoal(req, res) {
   res.status(201).json(row);
 }
 
-module.exports = { listByMatch, create, createAuto, addGoal };
+async function deleteGoal(req, res) {
+  const db = req.db;
+  const gameId = Number(req.params.gameId);
+  const goalId = Number(req.params.goalId);
+
+  if (!Number.isInteger(gameId)) {
+    return res.status(400).json({ error: "Érvénytelen gameId" });
+  }
+  if (!Number.isInteger(goalId)) {
+    return res.status(400).json({ error: "Érvénytelen goalId" });
+  }
+
+  const goal = await dbGet(
+    db,
+    `SELECT id
+       FROM match_game_goals
+      WHERE id = ?
+        AND game_id = ?`,
+    [goalId, gameId]
+  );
+
+  if (!goal) {
+    return res.status(404).json({ error: "Nem található gól" });
+  }
+
+  await dbRun(db, "DELETE FROM match_game_goals WHERE id = ?", [goalId]);
+
+  res.json({ deleted: goalId });
+}
+
+module.exports = { listByMatch, create, createAuto, addGoal, deleteGoal };
