@@ -9,15 +9,13 @@ export async function renderStats(root) {
     <div class="panel">
       <h2>Statisztika</h2>
       <div class="row" style="align-items:center;margin-bottom:12px;">
-        <label class="small" for="statsPlayerSelect">Játékos:</label>
-        <select id="statsPlayerSelect" class="input" style="min-width:220px;"></select>
         <label class="small" for="statsStartDate">Mettől:</label>
         <input id="statsStartDate" class="input" type="date" />
         <label class="small" for="statsEndDate">Meddig:</label>
         <input id="statsEndDate" class="input" type="date" />
         <button id="statsCalcBtn" class="primary">Számítás</button>
       </div>
-      <div id="statsResults" class="small">Válassz játékost és időszakot a statisztikához.</div>
+      <div id="statsResults" class="small">Válassz időszakot a statisztikához.</div>
     </div>
   `);
 
@@ -27,57 +25,16 @@ export async function renderStats(root) {
   store.setPlayers(players);
   store.setMatches(matches);
 
-  const playerSelect = panel.querySelector("#statsPlayerSelect");
   const startInput = panel.querySelector("#statsStartDate");
   const endInput = panel.querySelector("#statsEndDate");
   const results = panel.querySelector("#statsResults");
 
   if (!players.length) {
-    playerSelect.innerHTML = `<option value="">Nincs játékos</option>`;
     results.textContent = "Előbb adj hozzá játékosokat.";
     return;
   }
 
-  playerSelect.innerHTML = `<option value="">Játékos kiválasztása…</option>` +
-    players.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
-
-  const renderSummary = (stats) => {
-    results.innerHTML = "";
-    results.appendChild(el(`
-      <div class="stats-grid">
-        <div class="panel stat-card">
-          <div class="stat-value">${stats.appearances}</div>
-          <div class="small">Focizott alkalom</div>
-        </div>
-        <div class="panel stat-card">
-          <div class="stat-value">${stats.goals}</div>
-          <div class="small">Lőtt gól</div>
-        </div>
-        <div class="panel stat-card">
-          <div class="stat-value">${stats.wins}</div>
-          <div class="small">Győztes csapat</div>
-        </div>
-        <div class="panel stat-card">
-          <div class="stat-value">${stats.draws}</div>
-          <div class="small">Döntetlen</div>
-        </div>
-        <div class="panel stat-card">
-          <div class="stat-value">${stats.losses}</div>
-          <div class="small">Vesztes csapat</div>
-        </div>
-      </div>
-      <div class="small" style="margin-top:8px;">
-        Szűrt meccsek: ${stats.matchesInRange}, értékelt mérkőzések: ${stats.gamesCount}.
-        ${stats.teamlessAppearances ? `A játékos ${stats.teamlessAppearances} alkalommal nem volt csapatba sorolva.` : ""}
-      </div>
-    `));
-  };
-
   const calculateStats = async () => {
-    const playerId = Number(playerSelect.value);
-    if (!playerId) {
-      return toast("Válassz játékost.");
-    }
     const startDate = startInput.value;
     const endDate = endInput.value;
     if (startDate && endDate && startDate > endDate) {
@@ -86,8 +43,8 @@ export async function renderStats(root) {
 
     results.textContent = "Számítás folyamatban…";
 
-    const stats = await buildStatsForPlayer({
-      playerId,
+    const stats = await buildStatsForPlayers({
+      players,
       matches,
       startDate,
       endDate,
@@ -98,28 +55,123 @@ export async function renderStats(root) {
       return;
     }
 
-    renderSummary(stats);
+    results.innerHTML = "";
+    results.appendChild(renderSummaryTable(stats));
   };
 
   panel.querySelector("#statsCalcBtn").onclick = calculateStats;
 }
 
-async function buildStatsForPlayer({ playerId, matches, startDate, endDate }) {
+function renderSummaryTable(statsPayload) {
+  const { rows, matchesInRange } = statsPayload;
+  let sortKey = "name";
+  let sortDir = "asc";
+
+  const headers = [
+    { key: "name", label: "Játékos" },
+    { key: "appearances", label: "Focizott alkalom" },
+    { key: "goals", label: "Gól" },
+    { key: "wins", label: "Győzelem" },
+    { key: "draws", label: "Döntetlen" },
+    { key: "losses", label: "Vereség" },
+  ];
+
+  const table = el(`
+    <div class="panel">
+      <div class="small" style="margin-bottom:8px;">Szűrt meccsek: ${matchesInRange}</div>
+      <table class="stats-table">
+        <thead>
+          <tr>
+            ${headers.map(h => `
+              <th>
+                <button class="sort-button" data-key="${h.key}" data-label="${h.label}">
+                  ${h.label}
+                  <span class="sort-indicator" aria-hidden="true"></span>
+                </button>
+              </th>
+            `).join("")}
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `);
+
+  const tbody = table.querySelector("tbody");
+
+  const sortRows = () => {
+    const sorted = [...rows].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      if (typeof aVal === "string") {
+        const cmp = aVal.localeCompare(bVal, "hu", { sensitivity: "base" });
+        return sortDir === "asc" ? cmp : -cmp;
+      }
+      return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+
+    tbody.innerHTML = "";
+    sorted.forEach(row => {
+      tbody.appendChild(el(`
+        <tr>
+          <td>${row.name}</td>
+          <td>${row.appearances}</td>
+          <td>${row.goals}</td>
+          <td>${row.wins}</td>
+          <td>${row.draws}</td>
+          <td>${row.losses}</td>
+        </tr>
+      `));
+    });
+
+    table.querySelectorAll(".sort-button").forEach(button => {
+      const key = button.dataset.key;
+      button.classList.toggle("is-active", key === sortKey);
+      button.dataset.dir = key === sortKey ? sortDir : "";
+    });
+  };
+
+  table.querySelectorAll(".sort-button").forEach(button => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.key;
+      if (sortKey === key) {
+        sortDir = sortDir === "asc" ? "desc" : "asc";
+      } else {
+        sortKey = key;
+        sortDir = key === "name" ? "asc" : "desc";
+      }
+      sortRows();
+    });
+  });
+
+  sortRows();
+  return table;
+}
+
+async function buildStatsForPlayers({ players, matches, startDate, endDate }) {
   const filtered = matches.filter(match => {
     if (startDate && match.date < startDate) return false;
     if (endDate && match.date > endDate) return false;
     return true;
   });
 
-  const stats = {
+  const statsByPlayer = new Map(
+    players.map(player => [
+      player.id,
+      {
+        id: player.id,
+        name: player.name,
+        appearances: 0,
+        goals: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+      },
+    ])
+  );
+
+  const summary = {
     matchesInRange: filtered.length,
-    appearances: 0,
-    goals: 0,
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    gamesCount: 0,
-    teamlessAppearances: 0,
   };
 
   for (const match of filtered) {
@@ -129,49 +181,47 @@ async function buildStatsForPlayer({ playerId, matches, startDate, endDate }) {
       api.listMatchGames(match.id),
     ]);
 
-    const participantIds = new Set(participants.map(p => p.id));
-    const isParticipant = participantIds.has(playerId);
-    if (isParticipant) {
-      stats.appearances += 1;
-    }
-
-    const team = teams.find(t => (t.players ?? []).some(player => player.id === playerId));
-    if (!team && isParticipant) {
-      stats.teamlessAppearances += 1;
-    }
-
     const games = gamesResponse.games ?? [];
-    for (const game of games) {
-      for (const goal of game.goals ?? []) {
-        if (goal.scorer_player_id === playerId) {
-          stats.goals += 1;
-        }
-      }
+    const participantIds = new Set(participants.map(p => p.id));
+    participantIds.forEach(playerId => {
+      const record = statsByPlayer.get(playerId);
+      if (record) record.appearances += 1;
+    });
 
-      if (!team) continue;
-      if (game.home_team_id !== team.id && game.away_team_id !== team.id) {
-        continue;
-      }
+    const teamsById = new Map(teams.map(team => [team.id, team]));
 
-      stats.gamesCount += 1;
-
+    games.forEach(game => {
       const homeGoals = (game.goals ?? []).filter(g => g.scoring_team_id === game.home_team_id).length;
       const awayGoals = (game.goals ?? []).filter(g => g.scoring_team_id === game.away_team_id).length;
 
-      if (homeGoals === awayGoals) {
-        stats.draws += 1;
-        continue;
-      }
+      const homeResult = homeGoals === awayGoals ? "draw" : homeGoals > awayGoals ? "win" : "loss";
+      const awayResult = homeGoals === awayGoals ? "draw" : awayGoals > homeGoals ? "win" : "loss";
 
-      const teamIsHome = game.home_team_id === team.id;
-      const teamWon = teamIsHome ? homeGoals > awayGoals : awayGoals > homeGoals;
-      if (teamWon) {
-        stats.wins += 1;
-      } else {
-        stats.losses += 1;
-      }
-    }
+      const applyResult = (teamId, result) => {
+        const team = teamsById.get(teamId);
+        if (!team) return;
+        (team.players ?? []).forEach(player => {
+          const record = statsByPlayer.get(player.id);
+          if (!record) return;
+          if (result === "win") record.wins += 1;
+          if (result === "loss") record.losses += 1;
+          if (result === "draw") record.draws += 1;
+        });
+      };
+
+      applyResult(game.home_team_id, homeResult);
+      applyResult(game.away_team_id, awayResult);
+
+      (game.goals ?? []).forEach(goal => {
+        if (!goal.scorer_player_id) return;
+        const record = statsByPlayer.get(goal.scorer_player_id);
+        if (record) record.goals += 1;
+      });
+    });
   }
 
-  return stats;
+  return {
+    ...summary,
+    rows: Array.from(statsByPlayer.values()),
+  };
 }
