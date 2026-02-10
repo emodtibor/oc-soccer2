@@ -30,6 +30,155 @@ function buildScorerOptions(players) {
   `;
 }
 
+function computeTeamStandings(teams, games) {
+  const standings = new Map(
+    teams.map(team => [team.id, {
+      teamId: team.id,
+      teamIndex: team.teamIndex,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      points: 0,
+    }])
+  );
+
+  games.forEach(game => {
+    const home = standings.get(game.home_team_id);
+    const away = standings.get(game.away_team_id);
+    if (!home || !away) return;
+
+    const homeGoals = game.goals.filter(goal => goal.scoring_team_id === game.home_team_id).length;
+    const awayGoals = game.goals.filter(goal => goal.scoring_team_id === game.away_team_id).length;
+
+    home.played += 1;
+    away.played += 1;
+
+    home.goalsFor += homeGoals;
+    home.goalsAgainst += awayGoals;
+    away.goalsFor += awayGoals;
+    away.goalsAgainst += homeGoals;
+
+    if (homeGoals > awayGoals) {
+      home.wins += 1;
+      home.points += 3;
+      away.losses += 1;
+    } else if (awayGoals > homeGoals) {
+      away.wins += 1;
+      away.points += 3;
+      home.losses += 1;
+    } else {
+      home.draws += 1;
+      away.draws += 1;
+      home.points += 1;
+      away.points += 1;
+    }
+  });
+
+  return Array.from(standings.values()).sort((a, b) => (
+    b.points - a.points ||
+    (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) ||
+    b.goalsFor - a.goalsFor ||
+    a.teamIndex - b.teamIndex
+  ));
+}
+
+function computeScorerTable(games) {
+  const scorers = new Map();
+
+  games.forEach(game => {
+    game.goals.forEach(goal => {
+      if (goal.is_own_goal || !goal.scorer_player_id) return;
+      const existing = scorers.get(goal.scorer_player_id) || {
+        playerId: goal.scorer_player_id,
+        name: goal.scorer_name ?? "Ismeretlen",
+        goals: 0,
+      };
+      existing.goals += 1;
+      scorers.set(goal.scorer_player_id, existing);
+    });
+  });
+
+  return Array.from(scorers.values()).sort((a, b) => (
+    b.goals - a.goals || a.name.localeCompare(b.name, "hu")
+  ));
+}
+
+function renderTablesSummary(container, teams, games) {
+  const wrap = el(`<div class="summary-grid"></div>`);
+
+  if (teams.length === 3) {
+    const standings = computeTeamStandings(teams, games);
+    const teamCount = teams.length;
+    const standingsPanel = el(`
+      <div class="panel">
+        <h3>Csapat tabella</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Csapat</th>
+              <th>M</th>
+              <th>GY</th>
+              <th>D</th>
+              <th>V</th>
+              <th>Gk</th>
+              <th>P</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standings.map((row, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${getTeamName(row.teamIndex, teamCount)}</td>
+                <td>${row.played}</td>
+                <td>${row.wins}</td>
+                <td>${row.draws}</td>
+                <td>${row.losses}</td>
+                <td>${row.goalsFor}-${row.goalsAgainst}</td>
+                <td><strong>${row.points}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `);
+    wrap.appendChild(standingsPanel);
+  }
+
+  const scorers = computeScorerTable(games);
+  const scorersPanel = el(`
+    <div class="panel">
+      <h3>Góllövőlista</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Név</th>
+            <th>Gól</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${scorers.length
+            ? scorers.map((row, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${row.name}</td>
+                  <td><strong>${row.goals}</strong></td>
+                </tr>
+              `).join("")
+            : `<tr><td colspan="3" class="small">Még nincs rögzített gólszerző.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `);
+  wrap.appendChild(scorersPanel);
+
+  container.appendChild(wrap);
+}
+
 export async function renderGames(root) {
   clear(root);
 
@@ -246,4 +395,5 @@ async function renderMatchGames(container, matchId) {
   });
 
   container.appendChild(gamesWrap);
+  renderTablesSummary(container, teams, games);
 }
