@@ -133,6 +133,21 @@ async function generateTeams(req, res) {
   res.status(201).json({ teams: storedTeams });
 }
 
+// DELETE /matches/:id
+// Törli a meccset (a kapcsolódó adatok FK CASCADE miatt automatikusan törlődnek).
+async function remove(req, res) {
+  const db = req.db;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Érvénytelen id" });
+
+  const exec = await dbRun(db, `DELETE FROM matches WHERE id = ?`, [id]);
+  if (exec.changes === 0) {
+    return res.status(404).json({ error: "Nem található meccs" });
+  }
+
+  res.status(204).end();
+}
+
 async function saveTeams(req, res) {
   const db = req.db;
   const matchId = Number(req.params.id);
@@ -213,4 +228,4 @@ async function loadTeams(db, matchId) {
   return buildTeamsResponse(storedTeams, members);
 }
 
-module.exports = { list, create, update, generateTeams, saveTeams };
+module.exports = { list, create, update, remove, generateTeams, saveTeams };
