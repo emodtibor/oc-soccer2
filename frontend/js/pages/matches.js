@@ -48,7 +48,31 @@ export async function renderMatches(root) {
     renderParticipants(panel.querySelector("#participantsWrap"), players, ids, matchId, teamsPanel);
     await renderTeams(teamsPanel);
   };
-  renderMatchList(mList, matches, handleMatchSelect);
+  const participantsWrap = panel.querySelector("#participantsWrap");
+  const handleMatchDelete = async (matchId) => {
+    if (!confirm("Biztosan törlöd ezt a meccset?")) return;
+    try {
+      await api.deleteMatch(matchId);
+      const ms = await api.listMatches();
+      store.setMatches(ms);
+      if (store.currentMatchId === matchId) {
+        store.setCurrentMatch(null);
+        store.setParticipants([]);
+        store.setTeams([]);
+        store.clearGeneratedTeams();
+        clear(participantsWrap);
+        participantsWrap.appendChild(el(`<div class="small">Válassz meccset a listából!</div>`));
+      }
+      renderMatchList(mList, ms, handleMatchSelect, handleMatchDelete);
+      await renderTeams(teamsPanel);
+      toast("Meccs törölve.");
+    } catch (err) {
+      console.error(err);
+      toast("Nem sikerült törölni a meccset.");
+    }
+  };
+
+  renderMatchList(mList, matches, handleMatchSelect, handleMatchDelete);
   await renderTeams(teamsPanel);
 
   // Új meccs
@@ -59,13 +83,13 @@ export async function renderMatches(root) {
     const m = await api.createMatch({ date, location });
     const ms = await api.listMatches();
     store.setMatches(ms);
-    renderMatchList(mList, ms, handleMatchSelect);
+    renderMatchList(mList, ms, handleMatchSelect, handleMatchDelete);
     panel.querySelector("#mDate").value = "";
     panel.querySelector("#mLoc").value = "";
   };
 }
 
-function renderMatchList(container, matches, onSelect) {
+function renderMatchList(container, matches, onSelect, onDelete) {
   clear(container);
   if (!matches.length) {
     container.appendChild(el(`<div class="small">Még nincs meccs.</div>`));
@@ -73,9 +97,15 @@ function renderMatchList(container, matches, onSelect) {
   }
   const ul = el(`<div></div>`);
   matches.forEach(m => {
-    const btn = el(`<button style="display:block;width:100%;text-align:left;margin-bottom:6px">${m.date} · ${m.location}</button>`);
-    btn.onclick = () => onSelect?.(m.id);
-    ul.appendChild(btn);
+    const row = el(`
+      <div class="row" style="gap:6px;align-items:stretch;margin-bottom:6px">
+        <button style="flex:1;text-align:left">${m.date} · ${m.location}</button>
+        <button class="danger" data-action="delete">Törlés</button>
+      </div>
+    `);
+    row.querySelector("button:not([data-action])").onclick = () => onSelect?.(m.id);
+    row.querySelector("button[data-action=delete]").onclick = () => onDelete?.(m.id);
+    ul.appendChild(row);
   });
   container.appendChild(ul);
 }
