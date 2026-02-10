@@ -44,6 +44,7 @@ export const api = {
   createMatchGame: (matchId, homeTeamId, awayTeamId) =>
     http("POST", `/matches/${matchId}/games`, { home_team_id: homeTeamId, away_team_id: awayTeamId }),
   createMatchGamesAuto: (matchId) => http("POST", `/matches/${matchId}/games/auto`, {}),
+  deleteMatchGame: (matchId, gameId) => http("DELETE", `/matches/${matchId}/games/${gameId}`),
   addGameGoal: (gameId, payload) => http("POST", `/games/${gameId}/goals`, payload),
   deleteGameGoal: (gameId, goalId) => http("DELETE", `/games/${gameId}/goals/${goalId}`),
 };

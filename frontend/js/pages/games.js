@@ -306,6 +306,9 @@ async function renderMatchGames(container, matchId) {
         </div>
         <div class="game-goals"></div>
         <div class="game-form"></div>
+        <div class="row" style="justify-content:flex-end;margin-top:8px;">
+          <button class="danger delete-game-btn" type="button" title="Mérkőzés törlése">Mérkőzés törlése</button>
+        </div>
       </div>
     `);
 
@@ -388,6 +391,16 @@ async function renderMatchGames(container, matchId) {
       } catch (err) {
         console.error(err);
         toast("Nem sikerült menteni a gólt.");
+      }
+    };
+
+    card.querySelector(".delete-game-btn").onclick = async () => {
+      try {
+        await api.deleteMatchGame(matchId, game.id);
+        await renderMatchGames(container, matchId);
+      } catch (err) {
+        console.error(err);
+        toast("Nem sikerült törölni a mérkőzést.");
       }
     };
 
