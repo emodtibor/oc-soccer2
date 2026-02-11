@@ -7,6 +7,8 @@ services:
     volumes:
       - /srv/oc-soccer/backend/data:/app/data
     restart: unless-stopped
+    networks:
+      - proxy_shared
 
   frontend:
     image: docker.io/emodtibor/oc-soccer-frontend@__FRONTEND_DIGEST__
@@ -19,4 +21,3 @@ services:
 networks:
   proxy_shared:
     external: true
-    name: proxy_shared
