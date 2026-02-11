@@ -97,25 +97,60 @@ jobs:
           fi
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Update Portainer stack content (stackId=9, endpointId=2)
+      - name: Get stack ID by name
+        id: stack
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           TOKEN: ${{ steps.portainer.outputs.token }}
         run: |
+            set -euo pipefail
+            
+            STACK_ID=$(curl -ksS "${PORTAINER_URL}/api/stacks?endpointId=2" \
+              -H "Authorization: Bearer ${TOKEN}" \
+              | python3 - <<'PY'
+            import sys, json
+            data = json.load(sys.stdin)
+            for s in data:
+              if s.get("Name") == "oc-soccer":
+                print(s.get("Id"))
+                break
+            PY
+            )
+            
+            if [ -z "$STACK_ID" ]; then
+            echo "Stack 'oc-soccer' not found"
+            exit 1
+            fi
+            
+            echo "stack_id=$STACK_ID" >> "$GITHUB_OUTPUT"
+            echo "Resolved stack ID: $STACK_ID"
+
+      - name: Update Portainer stack content
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+          STACK_ID: ${{ steps.stack.outputs.stack_id }}
+        run: |
           set -euo pipefail
+
           STACK_JSON="$(python3 -c 'import json; print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))')"
-          echo "Calling Portainer PUT /api/stacks/12?endpointId=2 ..."
-          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_update_body.txt -w "%{http_code}" \
-            -X PUT "${PORTAINER_URL}/api/stacks/9?endpointId=2" \
+
+          curl -ksS -X PUT \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}" \
-            || true)
-          echo "HTTP $HTTP_CODE"
-          echo "Body:"
-          cat /tmp/portainer_update_body.txt || true
-          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "204" ]; then
-            echo "Portainer stack update failed."
-            exit 1
-          fi
-          echo "Stack updated successfully."
+            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}"
+
+      - name: Deploy stack
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+          STACK_ID: ${{ steps.stack.outputs.stack_id }}
+        run: |
+          set -euo pipefail
+
+          curl -ksS -X POST \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}/deploy?endpointId=2" \
+            -H "Authorization: Bearer ${TOKEN}"
+
+          echo "Deploy triggered."
