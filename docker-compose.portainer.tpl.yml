@@ -10,8 +10,13 @@ services:
 
   frontend:
     image: docker.io/emodtibor/oc-soccer-frontend@__FRONTEND_DIGEST__
-    ports:
-      - "84:80"
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - proxy_shared
+
+networks:
+  proxy_shared:
+    external: true
+    name: proxy_shared
