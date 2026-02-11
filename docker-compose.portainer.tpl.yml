@@ -17,8 +17,7 @@ services:
       - proxy_shared
 
   sqlite-backup:
-    build:
-      context: /srv/oc-soccer/ops/sqlite-backup
+    image: alpine:3.20
     container_name: oc-soccer-sqlite-backup
     restart: unless-stopped
     environment:
@@ -29,6 +28,15 @@ services:
     volumes:
       - /srv/oc-soccer/backend/data:/db:ro
       - /srv/oc-soccer/backups/sqlite:/backups
+      - /srv/oc-soccer/ops/sqlite-backup/backup.sh:/app/backup.sh:ro
+      - /srv/oc-soccer/ops/sqlite-backup/crontab:/etc/crontabs/root:ro
+    command: >
+      sh -c "
+        apk add --no-cache sqlite tzdata bash findutils util-linux &&
+        chmod +x /app/backup.sh &&
+        crond -f -l 8
+      "
+
 
 networks:
   proxy_shared:
