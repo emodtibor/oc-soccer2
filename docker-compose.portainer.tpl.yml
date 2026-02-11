@@ -35,7 +35,12 @@ services:
             apk add --no-cache sqlite tzdata bash findutils util-linux &&
             crond -f -l 8
           "
-
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'test -n \"$(find /backups -maxdepth 1 -type f -name \"db.sqlite.*.bak*\" -mtime -3 -print -quit)\"'" ]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 2m
 
 networks:
   proxy_shared:
