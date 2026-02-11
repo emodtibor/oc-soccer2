@@ -4,6 +4,16 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const fs = require("fs");
 const { initDb } = require("./db"); // <-- A verzióból
+const {
+  ALLOWED_EMAIL,
+  attachAuth,
+  clearSession,
+  clearSessionCookie,
+  createSession,
+  requireWriteAuth,
+  setSessionCookie,
+  verifyGoogleIdToken,
+} = require("./utils/auth");
 
 async function start() {
   const dataDir = path.join(__dirname, "data");
@@ -12,8 +22,41 @@ async function start() {
   const db = await initDb(console); // <- itt nyit és migrál
 
   const app = express();
-  app.use(cors());
+  app.use(cors({ origin: true, credentials: true }));
   app.use(bodyParser.json());
+  app.use(attachAuth);
+
+  app.get("/auth/me", (req, res) => {
+    res.json({
+      isAuthenticated: req.auth.isAuthenticated,
+      user: req.auth.user,
+      allowedEmail: ALLOWED_EMAIL,
+    });
+  });
+
+  app.post("/auth/google", async (req, res) => {
+    try {
+      const idToken = req.body?.idToken;
+      if (!idToken) {
+        return res.status(400).json({ error: "Hiányzó idToken." });
+      }
+      const user = await verifyGoogleIdToken(idToken);
+      const sessionId = createSession(user);
+      setSessionCookie(res, sessionId);
+      return res.json({ ok: true, user });
+    } catch (err) {
+      console.error(err);
+      return res.status(403).json({ error: err.message || "Sikertelen bejelentkezés." });
+    }
+  });
+
+  app.post("/auth/logout", (req, res) => {
+    if (req.auth.sessionId) clearSession(req.auth.sessionId);
+    clearSessionCookie(res);
+    res.json({ ok: true });
+  });
+
+  app.use(requireWriteAuth);
 
   // DB elérhetővé tétele a controllereknek:
   app.use((req, _res, next) => {

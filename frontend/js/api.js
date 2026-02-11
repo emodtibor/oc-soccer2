@@ -4,6 +4,7 @@ const API_URL = window.APP_CONFIG.API_URL;
 async function http(method, path, body) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
+    credentials: "include",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined
   });
@@ -15,6 +16,11 @@ async function http(method, path, body) {
 }
 
 export const api = {
+  // auth
+  authMe: () => http("GET", "/auth/me"),
+  authWithGoogle: (idToken) => http("POST", "/auth/google", { idToken }),
+  logout: () => http("POST", "/auth/logout", {}),
+
   // players
   listPlayers: () => http("GET", "/players"),
   createPlayer: ({ name, skill, isGoalie }) => http("POST", "/players", { name, skill, isGoalie }),

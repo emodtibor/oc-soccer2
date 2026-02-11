@@ -9,7 +9,10 @@
 <body>
   <header class="app-header">
     <h1>OC Soccer</h1>
-    <div class="api-banner">API: <span id="apiUrlVal"></span></div>
+    <div class="header-right">
+      <div id="authControls"></div>
+      <div class="api-banner">API: <span id="apiUrlVal"></span></div>
+    </div>
   </header>
 
   <nav class="tabs">
@@ -27,6 +30,7 @@
   </main>
 
   <script src="./config.js?v=2025090602"></script> <!-- config ELŐSZÖR -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     document.getElementById('apiUrlVal').textContent =
       (window.APP_CONFIG && window.APP_CONFIG.API_URL) || 'N/A';
