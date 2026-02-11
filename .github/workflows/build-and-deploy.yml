@@ -103,27 +103,41 @@ jobs:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           TOKEN: ${{ steps.portainer.outputs.token }}
         run: |
-            set -euo pipefail
-            
-            STACK_ID=$(curl -ksS "${PORTAINER_URL}/api/stacks?endpointId=2" \
-              -H "Authorization: Bearer ${TOKEN}" \
-              | python3 - <<'PY'
-            import sys, json
-            data = json.load(sys.stdin)
-            for s in data:
-              if s.get("Name") == "oc-soccer":
-                print(s.get("Id"))
-                break
+          set -euo pipefail
+
+          # 1) kérjük le a stackeket (ez biztosan létezik)
+          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/stacks.json -w "%{http_code}" \
+            "${PORTAINER_URL}/api/stacks" \
+            -H "Authorization: Bearer ${TOKEN}" || true)
+
+          echo "HTTP $HTTP_CODE"
+          echo "Body head:"
+          head -200 /tmp/stacks.json || true
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Failed to list stacks."
+            exit 1
+          fi
+
+          # 2) parse-oljuk ki az ID-t név alapján
+          STACK_ID=$(python3 - <<'PY'
+          import json
+          data = json.load(open("/tmp/stacks.json","r",encoding="utf-8"))
+          for s in data:
+            if s.get("Name") == "oc-soccer":
+              print(s.get("Id"))
+              break
             PY
             )
             
             if [ -z "$STACK_ID" ]; then
-            echo "Stack 'oc-soccer' not found"
+            echo "Stack 'oc-soccer' not found in /api/stacks list"
             exit 1
             fi
             
             echo "stack_id=$STACK_ID" >> "$GITHUB_OUTPUT"
             echo "Resolved stack ID: $STACK_ID"
+
 
       - name: Update Portainer stack content
         env:
