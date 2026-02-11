@@ -3,6 +3,7 @@ import { renderPlayers } from "./pages/players.js";
 import { renderMatches } from "./pages/matches.js";
 import { renderGames } from "./pages/games.js";
 import { renderStats } from "./pages/stats.js";
+import { getAuthState, renderAuthControls } from "./auth.js";
 
 const tabs = document.querySelectorAll(".tabs button");
 const sections = {
@@ -17,31 +18,61 @@ function activateTab(name) {
   Object.entries(sections).forEach(([k, sec]) => sec.classList.toggle("active", k === name));
 }
 
+function setTabVisibility(authState) {
+  const allowedTabs = authState.isAuthenticated
+    ? new Set(["players", "matches", "games", "stats"])
+    : new Set(["games", "stats"]);
+
+  tabs.forEach(button => {
+    const visible = allowedTabs.has(button.dataset.tab);
+    button.style.display = visible ? "" : "none";
+  });
+}
+
+async function renderTab(tabName, authState) {
+  if (tabName === "players") {
+    await renderPlayers(sections.players);
+  } else if (tabName === "matches") {
+    await renderMatches(sections.matches);
+  } else if (tabName === "games") {
+    await renderGames(sections.games, { readOnly: !authState.isAuthenticated });
+  } else if (tabName === "stats") {
+    await renderStats(sections.stats);
+  }
+}
+
 async function init() {
-  // alap tab
-  activateTab("players");
-  await renderPlayers(sections.players);
+  const authControls = document.getElementById("authControls");
+
+  let authState = await getAuthState();
+  setTabVisibility(authState);
+
+  const reloadAuthAndUi = async () => {
+    authState = await getAuthState();
+    setTabVisibility(authState);
+    renderAuthControls(authControls, authState, reloadAuthAndUi);
+    const firstTab = authState.isAuthenticated ? "players" : "games";
+    activateTab(firstTab);
+    await renderTab(firstTab, authState);
+    if (authState.isAuthenticated) {
+      await renderMatches(sections.matches);
+    }
+    await renderGames(sections.games, { readOnly: !authState.isAuthenticated });
+    await renderStats(sections.stats);
+  };
+
+  renderAuthControls(authControls, authState, reloadAuthAndUi);
 
   // tab váltás
   tabs.forEach(b => {
     b.onclick = async () => {
+      if (b.style.display === "none") return;
       activateTab(b.dataset.tab);
-      if (b.dataset.tab === "players") {
-        await renderPlayers(sections.players);
-      } else if (b.dataset.tab === "matches") {
-        await renderMatches(sections.matches);
-      } else if (b.dataset.tab === "games") {
-        await renderGames(sections.games);
-      } else if (b.dataset.tab === "stats") {
-        await renderStats(sections.stats);
-      }
+      await renderTab(b.dataset.tab, authState);
     };
   });
 
-  // első betöltésnél töltsük a meccsek oldalt is (hogy azonnal választható legyen)
-  await renderMatches(sections.matches);
-  await renderGames(sections.games);
-  await renderStats(sections.stats);
+  await reloadAuthAndUi();
 }
 
 init();
