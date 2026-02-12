@@ -127,7 +127,7 @@ jobs:
           echo "stack_id=$STACK_ID" >> "$GITHUB_OUTPUT"
           echo "Resolved stack ID: $STACK_ID"
 
-      - name: Update Portainer stack content
+      - name: Update Portainer stack content (apply + pull images)
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           TOKEN: ${{ steps.portainer.outputs.token }}
@@ -137,31 +137,20 @@ jobs:
 
           STACK_JSON="$(python3 -c 'import json; print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))')"
 
-          curl -ksS -X PUT \
-            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
+          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_update_body.txt -w "%{http_code}" \
+            -X PUT "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}"
-
-      - name: Redeploy stack
-        env:
-          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
-          TOKEN: ${{ steps.portainer.outputs.token }}
-          STACK_ID: ${{ steps.stack.outputs.stack_id }}
-        run: |
-          set -euo pipefail
-
-          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_redeploy_body.txt -w "%{http_code}" \
-            -X POST "${PORTAINER_URL}/api/stacks/${STACK_ID}/redeploy?endpointId=2" \
-            -H "Authorization: Bearer ${TOKEN}" || true)
+            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true, \"PullImage\": true}" \
+            || true)
 
           echo "HTTP $HTTP_CODE"
           echo "Body:"
-          cat /tmp/portainer_redeploy_body.txt || true
+          cat /tmp/portainer_update_body.txt || true
 
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "204" ]; then
-            echo "Portainer redeploy failed."
+            echo "Portainer stack update failed."
             exit 1
           fi
 
-          echo "Redeploy triggered."
+          echo "Stack updated (and images pulled)."
