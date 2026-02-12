@@ -18,6 +18,7 @@ async function http(method, path, body) {
 export const api = {
   // auth
   authMe: () => http("GET", "/auth/me"),
+  authWithGoogle: (idToken) => http("POST", "/auth/google", { idToken }),
   logout: () => http("POST", "/auth/logout", {}),
 
   // players

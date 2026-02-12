@@ -11,8 +11,8 @@ const {
   clearSession,
   clearSessionCookie,
   consumeOAuthState,
-  createSession,
   exchangeCodeForIdToken,
+  createSession,
   requireWriteAuth,
   setSessionCookie,
   verifyGoogleIdToken,
@@ -37,39 +37,19 @@ async function start() {
     });
   });
 
-  app.get("/auth/google/start", (req, res) => {
+  app.post("/auth/google", async (req, res) => {
     try {
-      const requestedReturnTo = req.query?.returnTo;
-      const returnTo = typeof requestedReturnTo === "string" && requestedReturnTo.trim()
-        ? requestedReturnTo
-        : "/";
-      const authUrl = buildGoogleAuthUrl(req, returnTo);
-      return res.redirect(authUrl);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).send(err.message || "Sikertelen Google bejelentkezés indítás.");
-    }
-  });
-
-  app.get("/auth/google/callback", async (req, res) => {
-    try {
-      const code = req.query?.code;
-      const state = req.query?.state;
-      if (!code || !state) {
-        return res.status(400).send("Hiányzó OAuth paraméterek.");
+      const idToken = req.body?.idToken;
+      if (!idToken) {
+        return res.status(400).json({ error: "Hiányzó idToken." });
       }
-      const stateRecord = consumeOAuthState(state);
-      if (!stateRecord) {
-        return res.status(400).send("Lejárt vagy érvénytelen OAuth state.");
-      }
-      const idToken = await exchangeCodeForIdToken(req, code);
       const user = await verifyGoogleIdToken(idToken);
       const sessionId = createSession(user);
       setSessionCookie(res, sessionId);
-      return res.redirect(stateRecord.returnTo || "/");
+      return res.json({ ok: true, user });
     } catch (err) {
       console.error(err);
-      return res.status(403).send(err.message || "Sikertelen bejelentkezés.");
+      return res.status(403).json({ error: err.message || "Sikertelen bejelentkezés." });
     }
   });
 

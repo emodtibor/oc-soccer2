@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 
-const API_URL = window.APP_CONFIG.API_URL;
+const GOOGLE_CLIENT_ID = window.APP_CONFIG.GOOGLE_CLIENT_ID;
 
 export async function getAuthState() {
   try {
@@ -18,12 +18,6 @@ export async function getAuthState() {
       allowedEmail: null,
     };
   }
-}
-
-function resolveApiPath(pathname) {
-  if (/^https?:\/\//.test(API_URL)) return `${API_URL}${pathname}`;
-  const normalizedBase = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
-  return `${normalizedBase}${pathname}`;
 }
 
 export function renderAuthControls(container, authState, onAuthChanged) {
@@ -51,22 +45,45 @@ export function renderAuthControls(container, authState, onAuthChanged) {
     return;
   }
 
-  const loginBtn = document.createElement("button");
-  loginBtn.type = "button";
-  loginBtn.className = "primary";
-  loginBtn.textContent = "Bejelentkezés Google-lel";
-  loginBtn.onclick = () => {
-    const returnTo = window.location.href;
-    const authStartUrl = `${resolveApiPath("/auth/google/start")}?returnTo=${encodeURIComponent(returnTo)}`;
-    window.location.assign(authStartUrl);
-  };
+  if (!GOOGLE_CLIENT_ID) {
+    const info = document.createElement("span");
+    info.className = "small";
+    info.textContent = "A Google bejelentkezéshez hiányzik a GOOGLE_CLIENT_ID beállítás.";
+    container.appendChild(info);
+    return;
+  }
 
-  const hint = document.createElement("span");
-  hint.className = "small";
-  hint.textContent = authState.allowedEmail
-    ? `Engedélyezett fiók: ${authState.allowedEmail}`
-    : "Csak engedélyezett Google fiókkal lehet belépni.";
+  if (!window.google?.accounts?.id) {
+    const info = document.createElement("span");
+    info.className = "small";
+    info.textContent = "Google bejelentkezés betöltése folyamatban…";
+    container.appendChild(info);
+    return;
+  }
 
-  container.appendChild(loginBtn);
-  container.appendChild(hint);
+  const btnWrap = document.createElement("div");
+  container.appendChild(btnWrap);
+
+  window.google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: async (response) => {
+      if (!response.credential) return;
+      try {
+        await api.authWithGoogle(response.credential);
+        await onAuthChanged();
+      } catch (err) {
+        console.error(err);
+        alert("Nincs jogosultságod belépni.");
+      }
+    },
+    auto_select: false,
+    cancel_on_tap_outside: true,
+  });
+
+  window.google.accounts.id.renderButton(btnWrap, {
+    theme: "outline",
+    size: "medium",
+    text: "signin_with",
+    shape: "pill",
+  });
 }
