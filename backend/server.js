@@ -7,8 +7,11 @@ const { initDb } = require("./db"); // <-- A verzióból
 const {
   ALLOWED_EMAIL,
   attachAuth,
+  buildGoogleAuthUrl,
   clearSession,
   clearSessionCookie,
+  consumeOAuthState,
+  exchangeCodeForIdToken,
   createSession,
   requireWriteAuth,
   setSessionCookie,
