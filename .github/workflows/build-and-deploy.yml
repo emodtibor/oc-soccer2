@@ -98,6 +98,13 @@ jobs:
           docker compose -f /tmp/stack.validate.yml config >/dev/null
           echo "Compose file is valid."
 
+      - name: Debug- show rendered stack header
+        run: |
+          set -euo pipefail
+          echo "=== /tmp/stack.yml (first 120 lines) ==="
+          nl -ba /tmp/stack.yml | sed -n '1,120p'
+          echo "=== grep sqlite-backup ==="
+          grep -n "sqlite-backup" /tmp/stack.yml || true
 
       - name: Portainer login (JWT)
         id: portainer
