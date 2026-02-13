@@ -83,6 +83,12 @@ jobs:
             docker-compose.portainer.tpl.yml > /tmp/stack.yml
           echo "Generated stack file:" && cat /tmp/stack.yml
 
+      - name: Validate compose file
+        run: |
+          set -euo pipefail
+          docker compose -f /tmp/stack.yml config >/dev/null
+          echo "Compose file is valid."
+
       - name: Portainer login (JWT)
         id: portainer
         run: |
