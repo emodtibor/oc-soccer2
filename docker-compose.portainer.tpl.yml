@@ -7,6 +7,12 @@ services:
     restart: unless-stopped
     networks:
       - proxy_shared
+    env_file:
+      - /srv/oc-soccer/env/backend.env
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
 
   frontend:
     image: docker.io/emodtibor/oc-soccer-frontend@__FRONTEND_DIGEST__
@@ -15,10 +21,6 @@ services:
     restart: unless-stopped
     networks:
       - proxy_shared
-    environment:
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
 
   sqlite-backup:
     image: alpine:3.20
