@@ -133,7 +133,36 @@ jobs:
           echo "stack_id=$STACK_ID" >> "$GITHUB_OUTPUT"
           echo "Resolved stack ID: $STACK_ID"
 
-      - name: Update Portainer stack content (apply + pull images)
+      - name: Read current stack (to preserve env)
+        id: stack_details
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+          STACK_ID: ${{ steps.stack.outputs.stack_id }}
+        run: |
+          set -euo pipefail
+          curl -ksS \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > /tmp/stack_details.json
+
+          # teljes json (csak debughoz; ne logold ki)
+          STACK_DETAILS_JSON="$(python3 -c 'import json; print(json.dumps(json.load(open("/tmp/stack_details.json","r",encoding="utf-8"))))')"
+          echo "stack_details_json=$STACK_DETAILS_JSON" >> "$GITHUB_OUTPUT"
+
+          # env tömb
+          ENV_JSON="$(python3 -c 'import json; d=json.load(open("/tmp/stack_details.json","r",encoding="utf-8")); print(json.dumps(d.get("Env") or []))')"
+          echo "env_json=$ENV_JSON" >> "$GITHUB_OUTPUT"
+
+      - name: Debug stack env names (no values)
+        env:
+          STACK_DETAILS: ${{ steps.stack_details.outputs.stack_details_json }}
+        run: |
+          set -euo pipefail
+          echo "$STACK_DETAILS" > /tmp/stack_details.json
+          python3 -c 'import json; d=json.load(open("/tmp/stack_details.json")); env=d.get("Env") or []; print("Env names:", [e.get("name") for e in env])'
+
+      - name: Update Portainer stack content (preserve env)
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           TOKEN: ${{ steps.portainer.outputs.token }}
@@ -142,12 +171,13 @@ jobs:
           set -euo pipefail
 
           STACK_JSON="$(python3 -c 'import json; print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))')"
+          ENV_JSON='${{ steps.stack_details.outputs.env_json }}'
 
           HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_update_body.txt -w "%{http_code}" \
             -X PUT "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true, \"PullImage\": true}" \
+            -d "{\"StackFileContent\": ${STACK_JSON}, \"Env\": ${ENV_JSON}, \"Prune\": true, \"PullImage\": true}" \
             || true)
 
           echo "HTTP $HTTP_CODE"
@@ -159,4 +189,4 @@ jobs:
             exit 1
           fi
 
-          echo "Stack updated (and images pulled)."
+          echo "Stack updated."
