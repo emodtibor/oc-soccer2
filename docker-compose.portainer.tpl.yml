@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     networks:
       - proxy_shared
-    env_file:
+    environment:
       - /srv/oc-soccer/env/backend.env
 
   frontend:
