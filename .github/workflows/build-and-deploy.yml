@@ -83,11 +83,21 @@ jobs:
             docker-compose.portainer.tpl.yml > /tmp/stack.yml
           echo "Generated stack file:" && cat /tmp/stack.yml
 
-      - name: Validate compose file
+      - name: Validate compose (with CI dummy env_file)
         run: |
           set -euo pipefail
-          docker compose -f /tmp/stack.yml config >/dev/null
+
+          # dummy env file a runneren
+          echo "GOOGLE_CLIENT_ID=dummy" > /tmp/backend.env
+          echo "GOOGLE_CLIENT_SECRET=dummy" >> /tmp/backend.env
+          echo "GOOGLE_REDIRECT_URI=http://localhost/dummy" >> /tmp/backend.env
+
+          # csak validálásra kicseréljük az env_file path-ot
+          sed "s|/srv/oc-soccer/env/backend.env|/tmp/backend.env|g" /tmp/stack.yml > /tmp/stack.validate.yml
+
+          docker compose -f /tmp/stack.validate.yml config >/dev/null
           echo "Compose file is valid."
+
 
       - name: Portainer login (JWT)
         id: portainer
