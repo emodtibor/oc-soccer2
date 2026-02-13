@@ -171,6 +171,17 @@ jobs:
           ENV_JSON="$(python3 -c 'import json; d=json.load(open("/tmp/stack_details.json","r",encoding="utf-8")); print(json.dumps(d.get("Env") or []))')"
           echo "env_json=$ENV_JSON" >> "$GITHUB_OUTPUT"
 
+      - name: Debug - list stacks (name,id,endpoint,projectPath)
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -ksS "${PORTAINER_URL}/api/stacks" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            | python3 -c 'import sys,json; d=json.load(sys.stdin); 
+          print("\n".join([f'{s.get("Id")}  name={s.get("Name")}  endpoint={s.get("EndpointId")}  path={s.get("ProjectPath")}' for s in d]))'
+
       - name: Debug stack env names (no values)
         env:
           STACK_DETAILS: ${{ steps.stack_details.outputs.stack_details_json }}
