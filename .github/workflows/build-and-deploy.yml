@@ -179,8 +179,16 @@ jobs:
           set -euo pipefail
           curl -ksS "${PORTAINER_URL}/api/stacks" \
             -H "Authorization: Bearer ${TOKEN}" \
-            | python3 -c 'import sys,json; d=json.load(sys.stdin); 
-          print("\n".join([f'{s.get("Id")}  name={s.get("Name")}  endpoint={s.get("EndpointId")}  path={s.get("ProjectPath")}' for s in d]))'
+            > /tmp/stacks.json
+      
+          python3 - <<'PY'
+          import json
+          with open("/tmp/stacks.json","r",encoding="utf-8") as f:
+            d = json.load(f)
+        
+          for s in d:
+            print(f'{s.get("Id")}  name={s.get("Name")}  endpoint={s.get("EndpointId")}  path={s.get("ProjectPath")}')
+          PY
 
       - name: Debug stack env names (no values)
         env:
