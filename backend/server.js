@@ -11,8 +11,9 @@ const {
   clearSession,
   clearSessionCookie,
   consumeOAuthState,
-  exchangeCodeForIdToken,
   createSession,
+  exchangeCodeForIdToken,
+  getDefaultRedirectUri,
   requireWriteAuth,
   setSessionCookie,
   verifyGoogleIdToken,
@@ -25,7 +26,7 @@ async function start() {
   const db = await initDb(console); // <- itt nyit és migrál
 
   const app = express();
-  app.use(cors({ origin: true, credentials: true }));
+    app.use(cors({ origin: true, credentials: true }));
   app.use(bodyParser.json());
   app.use(attachAuth);
 
@@ -34,22 +35,43 @@ async function start() {
       isAuthenticated: req.auth.isAuthenticated,
       user: req.auth.user,
       allowedEmail: ALLOWED_EMAIL,
+      redirectUri: getDefaultRedirectUri(req),
     });
   });
 
-  app.post("/auth/google", async (req, res) => {
+  app.get("/auth/google/start", (req, res) => {
     try {
-      const idToken = req.body?.idToken;
-      if (!idToken) {
-        return res.status(400).json({ error: "Hiányzó idToken." });
+      const requestedReturnTo = req.query?.returnTo;
+      const returnTo = typeof requestedReturnTo === "string" && requestedReturnTo.trim()
+        ? requestedReturnTo
+        : "/";
+      const authUrl = buildGoogleAuthUrl(req, returnTo);
+      return res.redirect(authUrl);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).send(err.message || "Sikertelen Google bejelentkezés indítás.");
+    }
+  });
+
+  app.get("/auth/google/callback", async (req, res) => {
+    try {
+      const code = req.query?.code;
+      const state = req.query?.state;
+      if (!code || !state) {
+        return res.status(400).send("Hiányzó OAuth paraméterek.");
       }
+      const stateRecord = consumeOAuthState(state);
+      if (!stateRecord) {
+        return res.status(400).send("Lejárt vagy érvénytelen OAuth state.");
+      }
+      const idToken = await exchangeCodeForIdToken(req, code);
       const user = await verifyGoogleIdToken(idToken);
       const sessionId = createSession(user);
       setSessionCookie(res, sessionId);
-      return res.json({ ok: true, user });
+      return res.redirect(stateRecord.returnTo || "/");
     } catch (err) {
       console.error(err);
-      return res.status(403).json({ error: err.message || "Sikertelen bejelentkezés." });
+      return res.status(403).send(err.message || "Sikertelen bejelentkezés.");
     }
   });
 
