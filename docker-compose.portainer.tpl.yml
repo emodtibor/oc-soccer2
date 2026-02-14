@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   backend:
     image: docker.io/emodtibor/oc-soccer-backend@__BACKEND_DIGEST__
@@ -14,6 +13,8 @@ services:
     restart: unless-stopped
     networks:
       - proxy_shared
+    environment:
+      - /srv/oc-soccer/env/backend.env
 
   frontend:
     image: docker.io/emodtibor/oc-soccer-frontend@__FRONTEND_DIGEST__
@@ -22,32 +23,6 @@ services:
     restart: unless-stopped
     networks:
       - proxy_shared
-
-  sqlite-backup:
-    image: alpine:3.20
-    container_name: oc-soccer-sqlite-backup
-    restart: unless-stopped
-    environment:
-      TZ: Europe/Budapest
-      DB_PATH: /db/db.sqlite
-      BACKUP_DIR: /backups
-      RETENTION_DAYS: "14"
-    volumes:
-      - /srv/oc-soccer/backend/data:/db:ro
-      - /srv/oc-soccer/backups/sqlite:/backups
-      - /srv/oc-soccer/ops/sqlite-backup/backup.sh:/app/backup.sh:ro
-      - /srv/oc-soccer/ops/sqlite-backup/crontab:/etc/crontabs/root:ro
-    command: >
-      sh -c "
-            apk add --no-cache sqlite tzdata bash findutils util-linux &&
-            crond -f -l 8
-          "
-    healthcheck:
-      test: [ "CMD-SHELL", "sh -c 'test -n \"$(find /backups -maxdepth 1 -type f -name \"db.sqlite.*.bak*\" -mtime -3 -print -quit)\"'" ]
-      interval: 1h
-      timeout: 10s
-      retries: 3
-      start_period: 2m
 
 networks:
   proxy_shared:

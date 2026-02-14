@@ -26,7 +26,7 @@ async function start() {
   const db = await initDb(console); // <- itt nyit és migrál
 
   const app = express();
-  app.use(cors({ origin: true, credentials: true }));
+    app.use(cors({ origin: true, credentials: true }));
   app.use(bodyParser.json());
   app.use(attachAuth);
 

@@ -83,6 +83,29 @@ jobs:
             docker-compose.portainer.tpl.yml > /tmp/stack.yml
           echo "Generated stack file:" && cat /tmp/stack.yml
 
+      - name: Validate compose (with CI dummy env_file)
+        run: |
+          set -euo pipefail
+
+          # dummy env file a runneren
+          echo "GOOGLE_CLIENT_ID=dummy" > /tmp/backend.env
+          echo "GOOGLE_CLIENT_SECRET=dummy" >> /tmp/backend.env
+          echo "GOOGLE_REDIRECT_URI=http://localhost/dummy" >> /tmp/backend.env
+
+          # csak validálásra kicseréljük az env_file path-ot
+          sed "s|/srv/oc-soccer/env/backend.env|/tmp/backend.env|g" /tmp/stack.yml > /tmp/stack.validate.yml
+
+          docker compose -f /tmp/stack.validate.yml config >/dev/null
+          echo "Compose file is valid."
+
+      - name: Debug- show rendered stack header
+        run: |
+          set -euo pipefail
+          echo "=== /tmp/stack.yml (first 120 lines) ==="
+          nl -ba /tmp/stack.yml | sed -n '1,120p'
+          echo "=== grep sqlite-backup ==="
+          grep -n "sqlite-backup" /tmp/stack.yml || true
+
       - name: Portainer login (JWT)
         id: portainer
         run: |
@@ -127,7 +150,55 @@ jobs:
           echo "stack_id=$STACK_ID" >> "$GITHUB_OUTPUT"
           echo "Resolved stack ID: $STACK_ID"
 
-      - name: Update Portainer stack content
+      - name: Read current stack (to preserve env)
+        id: stack_details
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+          STACK_ID: ${{ steps.stack.outputs.stack_id }}
+        run: |
+          set -euo pipefail
+          curl -ksS \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > /tmp/stack_details.json
+
+          # teljes json (csak debughoz; ne logold ki)
+          STACK_DETAILS_JSON="$(python3 -c 'import json; print(json.dumps(json.load(open("/tmp/stack_details.json","r",encoding="utf-8"))))')"
+          echo "stack_details_json=$STACK_DETAILS_JSON" >> "$GITHUB_OUTPUT"
+
+          # env tömb
+          ENV_JSON="$(python3 -c 'import json; d=json.load(open("/tmp/stack_details.json","r",encoding="utf-8")); print(json.dumps(d.get("Env") or []))')"
+          echo "env_json=$ENV_JSON" >> "$GITHUB_OUTPUT"
+
+      - name: Debug - list stacks (name,id,endpoint,projectPath)
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          TOKEN: ${{ steps.portainer.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -ksS "${PORTAINER_URL}/api/stacks" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > /tmp/stacks.json
+      
+          python3 - <<'PY'
+          import json
+          with open("/tmp/stacks.json","r",encoding="utf-8") as f:
+            d = json.load(f)
+        
+          for s in d:
+            print(f'{s.get("Id")}  name={s.get("Name")}  endpoint={s.get("EndpointId")}  path={s.get("ProjectPath")}')
+          PY
+
+      - name: Debug stack env names (no values)
+        env:
+          STACK_DETAILS: ${{ steps.stack_details.outputs.stack_details_json }}
+        run: |
+          set -euo pipefail
+          echo "$STACK_DETAILS" > /tmp/stack_details.json
+          python3 -c 'import json; d=json.load(open("/tmp/stack_details.json")); env=d.get("Env") or []; print("Env names:", [e.get("name") for e in env])'
+
+      - name: Update Portainer stack content (preserve env)
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           TOKEN: ${{ steps.portainer.outputs.token }}
@@ -136,23 +207,22 @@ jobs:
           set -euo pipefail
 
           STACK_JSON="$(python3 -c 'import json; print(json.dumps(open("/tmp/stack.yml","r",encoding="utf-8").read()))')"
+          ENV_JSON='${{ steps.stack_details.outputs.env_json }}'
 
-          curl -ksS -X PUT \
-            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
+          HTTP_CODE=$(curl -ksS --fail-with-body -o /tmp/portainer_update_body.txt -w "%{http_code}" \
+            -X PUT "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=2" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"StackFileContent\": ${STACK_JSON}, \"Prune\": true}"
+            -d "{\"StackFileContent\": ${STACK_JSON}, \"Env\": ${ENV_JSON}, \"Prune\": true, \"PullImage\": true}" \
+            || true)
 
-      - name: Deploy stack
-        env:
-          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
-          TOKEN: ${{ steps.portainer.outputs.token }}
-          STACK_ID: ${{ steps.stack.outputs.stack_id }}
-        run: |
-          set -euo pipefail
+          echo "HTTP $HTTP_CODE"
+          echo "Body:"
+          cat /tmp/portainer_update_body.txt || true
 
-          curl -ksS -X POST \
-            "${PORTAINER_URL}/api/stacks/${STACK_ID}/deploy?endpointId=2" \
-            -H "Authorization: Bearer ${TOKEN}"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "204" ]; then
+            echo "Portainer stack update failed."
+            exit 1
+          fi
 
-          echo "Deploy triggered."
+          echo "Stack updated."
