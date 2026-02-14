@@ -2,7 +2,7 @@ services:
   backend:
     image: docker.io/emodtibor/oc-soccer-backend@__BACKEND_DIGEST__
     env_file:
-      - /srv/oc-soccer/backend/.env
+      - /srv/oc-soccer/env/backend.env
     environment:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
