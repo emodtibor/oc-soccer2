@@ -4,17 +4,16 @@ services:
     env_file:
       - /srv/oc-soccer/backend/.env
     environment:
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
-      GOOGLE_AUTH_BASE_PATH: ${GOOGLE_AUTH_BASE_PATH:-/api}
+      - GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      - GOOGLE_AUTH_BASE_PATH: ${GOOGLE_AUTH_BASE_PATH:-/api}
+#      - /srv/oc-soccer/env/backend.env
     volumes:
       - /srv/oc-soccer/backend/data:/app/data
     restart: unless-stopped
     networks:
       - proxy_shared
-    environment:
-      - /srv/oc-soccer/env/backend.env
 
   frontend:
     image: docker.io/emodtibor/oc-soccer-frontend@__FRONTEND_DIGEST__
