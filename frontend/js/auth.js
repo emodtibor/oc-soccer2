@@ -8,14 +8,14 @@ export async function getAuthState() {
     return {
       isAuthenticated: Boolean(response.isAuthenticated),
       user: response.user ?? null,
-      allowedEmail: response.allowedEmail ?? null,
+      allowedEmails: response.allowedEmails ?? [],
     };
   } catch (err) {
     console.error(err);
     return {
       isAuthenticated: false,
       user: null,
-      allowedEmail: null,
+      allowedEmails: [],
     };
   }
 }
@@ -63,8 +63,8 @@ export function renderAuthControls(container, authState, onAuthChanged) {
 
   const hint = document.createElement("span");
   hint.className = "small";
-  hint.textContent = authState.allowedEmail
-    ? `Engedélyezett fiók: ${authState.allowedEmail}`
+  hint.textContent = authState.allowedEmails?.length
+    ? `Engedélyezett fiókok: ${authState.allowedEmails.join(", ")}`
     : "Csak engedélyezett Google fiókkal lehet belépni.";
 
   container.appendChild(loginBtn);
