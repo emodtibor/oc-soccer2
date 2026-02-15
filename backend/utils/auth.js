@@ -2,7 +2,7 @@ const crypto = require("crypto");
 
 const SESSION_COOKIE_NAME = "oc_soccer_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 nap
-const ALLOWED_EMAIL = "emod.tibor@gmail.com";
+const ALLOWED_EMAILS = ["emod.tibor@gmail.com", "piros.gabor@gmail.com"];
 const OAUTH_STATE_TTL_MS = 1000 * 60 * 10; // 10 perc
 
 const sessions = new Map();
@@ -86,7 +86,8 @@ async function verifyGoogleIdToken(idToken) {
   if (payload.email_verified !== "true") {
     throw new Error("A Google email nincs hitelesítve.");
   }
-  if (!payload.email || payload.email.toLowerCase() !== ALLOWED_EMAIL) {
+  const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase());
+  if (!payload.email || !normalizedAllowedEmails.includes(payload.email.toLowerCase())) {
     throw new Error("Nincs jogosultságod belépni.");
   }
   return {
@@ -202,7 +203,7 @@ function requireWriteAuth(req, res, next) {
 }
 
 module.exports = {
-  ALLOWED_EMAIL,
+  ALLOWED_EMAILS,
   attachAuth,
   clearSession,
   clearSessionCookie,

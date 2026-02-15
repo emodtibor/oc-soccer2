@@ -5,7 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const { initDb } = require("./db"); // <-- A verzióból
 const {
-  ALLOWED_EMAIL,
+  ALLOWED_EMAILS,
   attachAuth,
   buildGoogleAuthUrl,
   clearSession,
@@ -34,7 +34,7 @@ async function start() {
     res.json({
       isAuthenticated: req.auth.isAuthenticated,
       user: req.auth.user,
-      allowedEmail: ALLOWED_EMAIL,
+      allowedEmails: ALLOWED_EMAILS,
       redirectUri: getDefaultRedirectUri(req),
     });
   });
