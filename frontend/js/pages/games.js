@@ -202,6 +202,25 @@ export async function renderGames(root, { readOnly = false } = {}) {
   select.innerHTML = `<option value="">Meccs kiválasztása…</option>` +
     matches.map(m => `<option value="${m.id}">${m.date} · ${m.location}</option>`).join("");
 
+  const getMatchTimestamp = (match) => {
+    const ts = new Date(match.date).getTime();
+    return Number.isNaN(ts) ? 0 : ts;
+  };
+
+  const latestMatch = matches.reduce((latest, current) => {
+    if (!latest) return current;
+    const currentTs = getMatchTimestamp(current);
+    const latestTs = getMatchTimestamp(latest);
+    if (currentTs > latestTs) return current;
+    if (currentTs === latestTs && current.id > latest.id) return current;
+    return latest;
+  }, null);
+
+  if (latestMatch) {
+    select.value = String(latestMatch.id);
+    await renderMatchGames(panel.querySelector("#gamesContent"), latestMatch.id, { readOnly });
+  }
+
   select.onchange = async () => {
     const matchId = Number(select.value);
     if (!matchId) {
