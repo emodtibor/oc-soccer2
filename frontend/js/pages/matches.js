@@ -115,7 +115,12 @@ function renderParticipants(container, players, selectedIds, matchId, teamsPanel
   const MAX_FIELDERS = 15;
   const MAX_GOALIES = 3;
   const limitMessage = `Max ${MAX_FIELDERS} mezőnyjátékos és ${MAX_GOALIES} kapus választható.`;
-  const info = el(`<div style="margin-bottom:8px" class="small">${limitMessage} Pipáld ki akik jönnek, majd „Mentés”.</div>`);
+  const info = el(`
+    <div style="margin-bottom:8px" class="small">
+      ${limitMessage} Pipáld ki akik jönnek, majd „Mentés”.
+      <div id="participantsCounter" style="margin-top:4px;"></div>
+    </div>
+  `);
   const list = el(`<div style="max-height:400px;overflow:auto;margin-bottom:8px"></div>`);
   const actions = el(`
     <div class="row">
@@ -145,6 +150,11 @@ function renderParticipants(container, players, selectedIds, matchId, teamsPanel
     }
     return true;
   };
+  const counterEl = info.querySelector("#participantsCounter");
+  const renderCounter = () => {
+    const { goalies, fielders } = getCounts();
+    counterEl.textContent = `Résztvevők: ${idSet.size} fő (mezőny: ${fielders}, kapus: ${goalies})`;
+  };
 
   players.forEach(p => {
     const row = el(`
@@ -164,14 +174,18 @@ function renderParticipants(container, players, selectedIds, matchId, teamsPanel
       } else {
         idSet.delete(p.id);
       }
+      renderCounter();
     };
     list.appendChild(row);
   });
+
+  renderCounter();
 
   actions.querySelector("#savePartBtn").onclick = async () => {
     const ids = Array.from(idSet);
     if (!validateSelection()) return;
     await api.setParticipants(matchId, ids);
+    store.setParticipants(ids);
     toast("Résztvevők mentve.");
   };
 
@@ -182,6 +196,7 @@ function renderParticipants(container, players, selectedIds, matchId, teamsPanel
     if (!validateSelection()) return;
     try {
       await api.setParticipants(matchId, ids);
+      store.setParticipants(ids);
       const saved = await api.generateTeams(matchId);
       store.clearGeneratedTeams();
       store.setTeams(saved.teams || []);
