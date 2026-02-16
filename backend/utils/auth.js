@@ -2,7 +2,7 @@ const crypto = require("crypto");
 
 const SESSION_COOKIE_NAME = "oc_soccer_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 nap
-const ALLOWED_EMAILS = ["emod.tibor@gmail.com", "piros.gabor@gmail.com"];
+const ALLOWED_EMAILS = ["emod.tibor@gmail.com", "gabika920810@gmail.com"];
 const OAUTH_STATE_TTL_MS = 1000 * 60 * 10; // 10 perc
 
 const sessions = new Map();
