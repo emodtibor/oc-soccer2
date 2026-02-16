@@ -61,12 +61,5 @@ export function renderAuthControls(container, authState, onAuthChanged) {
     window.location.assign(authStartUrl);
   };
 
-  // const hint = document.createElement("span");
-  // hint.className = "small";
-  // hint.textContent = authState.allowedEmails?.length
-  //   ? `Engedélyezett fiókok: ${authState.allowedEmails.join(", ")}`
-  //   : "Csak engedélyezett Google fiókkal lehet belépni.";
-
   container.appendChild(loginBtn);
-  // container.appendChild(hint);
 }
