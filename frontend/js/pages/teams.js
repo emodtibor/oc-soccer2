@@ -65,14 +65,14 @@ export async function renderTeams(root) {
   store.setPlayers(players);
   if (!savedTeams.length && !generatedTeamsReady) {
     wrap.appendChild(el(`<div class="small">Még nincs elmentett csapat ehhez a meccshez.</div>`));
-    renderTeamsEditor(wrap, root, [], players);
+    renderTeamsEditor(wrap, root, [], players, store.participants || []);
     return;
   }
 
   if (savedTeams.length) {
     renderTeamsList(wrap, savedTeams, "Elmentett csapatok");
   }
-  renderTeamsEditor(wrap, root, savedTeams, players);
+  renderTeamsEditor(wrap, root, savedTeams, players, store.participants || []);
 }
 
 const TEAM_NAMES_BY_COUNT = {
@@ -130,7 +130,7 @@ function renderTeamsList(container, teams, title) {
   });
 }
 
-function renderTeamsEditor(container, root, teams, players) {
+function renderTeamsEditor(container, root, teams, players, participantIds = []) {
   const header = el(`<div class="small" style="margin:16px 0 6px 0;">Kézi szerkesztés</div>`);
   const editor = el(`<div class="panel team-editor"></div>`);
   const actions = el(`
@@ -157,6 +157,8 @@ function renderTeamsEditor(container, root, teams, players) {
       toast("Nem sikerült csapatot létrehozni.");
     }
   };
+
+  const participantIdSet = new Set(participantIds || []);
 
   teams.forEach(team => {
     const teamName = getTeamName(team.teamIndex, teams.length);
@@ -197,7 +199,9 @@ function renderTeamsEditor(container, root, teams, players) {
       body.appendChild(el(`<div class="small">Nincs játékos a csapatban.</div>`));
     }
 
-    const availablePlayers = players.filter(p => !team.players.some(tp => tp.id === p.id));
+    const availablePlayers = players.filter(
+      p => participantIdSet.has(p.id) && !team.players.some(tp => tp.id === p.id)
+    );
     const select = el(`
       <div class="row" style="align-items:center;">
         <select class="input" style="flex:1;">

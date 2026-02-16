@@ -103,35 +103,15 @@ async function addMember(req, res) {
     [matchId, player_id]
   );
   if (!existingParticipant) {
-    const counts = await dbGet(
-      db,
-      `SELECT
-        SUM(CASE WHEN p.is_goalie = 1 THEN 1 ELSE 0 END) AS goalies,
-        SUM(CASE WHEN p.is_goalie = 0 THEN 1 ELSE 0 END) AS fielders
-       FROM match_participants mp
-       JOIN players p ON p.id = mp.player_id
-      WHERE mp.match_id = ?`,
-      [matchId]
-    );
-    const goalies = (counts?.goalies ?? 0) + (player.is_goalie ? 1 : 0);
-    const fielders = (counts?.fielders ?? 0) + (player.is_goalie ? 0 : 1);
-    if (goalies > 3 || fielders > 15) {
-      return res.status(400).json({
-        error: "Max 15 mezőnyjátékos és 3 kapus választható.",
-      });
-    }
+    return res.status(400).json({
+      error: "Csak a meccs résztvevői adhatók csapathoz.",
+    });
   }
 
   // Egy meccsen belül 1 csapatban legyen a játékos:
   await dbRun(db, "BEGIN IMMEDIATE");
   try {
-    // 1) ha nem résztvevő, vegyük fel a résztvevők közé is
-    await dbRun(
-      db,
-      "INSERT OR IGNORE INTO match_participants(match_id, player_id) VALUES(?, ?)",
-      [matchId, player_id]
-    );
-    // 2) távolítsuk el minden más csapatból ezen a meccsen
+    // 1) távolítsuk el minden más csapatból ezen a meccsen
     await dbRun(
       db,
       `DELETE FROM match_team_members
@@ -139,7 +119,7 @@ async function addMember(req, res) {
           AND team_id IN (SELECT id FROM match_teams WHERE match_id = ?)`,
       [player_id, matchId]
     );
-    // 3) adjuk ehhez a csapathoz
+    // 2) adjuk ehhez a csapathoz
     await dbRun(
       db,
       "INSERT OR IGNORE INTO match_team_members(team_id, player_id) VALUES(?, ?)",
