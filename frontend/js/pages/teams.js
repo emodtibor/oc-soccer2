@@ -203,24 +203,30 @@ function renderTeamsEditor(container, root, teams, players, participantIds = [])
       p => participantIdSet.has(p.id) && !team.players.some(tp => tp.id === p.id)
     );
     const select = el(`
-      <div class="row" style="align-items:center;">
-        <select class="input" style="flex:1;">
-          <option value="">Játékos hozzáadása…</option>
+      <div>
+        <div class="small" style="margin:6px 0 4px 0;">Több játékos kijelölése: Ctrl/Cmd + kattintás</div>
+        <select class="input" style="width:100%;min-height:110px;" multiple>
           ${availablePlayers.map(p => `<option value="${p.id}">${p.name} (skill ${p.skill}${p.isGoalie ? ", kapus" : ""})</option>`).join("")}
         </select>
-        <button data-action="add">Hozzáadás</button>
+        <div class="row" style="margin-top:6px;justify-content:flex-end;">
+          <button data-action="add">Kijelöltek hozzáadása</button>
+        </div>
       </div>
     `);
     const selectEl = select.querySelector("select");
     select.querySelector("button[data-action=add]").onclick = async () => {
-      const playerId = Number(selectEl.value);
-      if (!playerId) return toast("Válassz játékost.");
+      const selectedIds = Array.from(selectEl.selectedOptions)
+        .map(option => Number(option.value))
+        .filter(Boolean);
+      if (!selectedIds.length) return toast("Válassz legalább egy játékost.");
       try {
-        await api.addTeamMember(store.currentMatchId, team.id, playerId);
+        await Promise.all(
+          selectedIds.map(playerId => api.addTeamMember(store.currentMatchId, team.id, playerId))
+        );
         await renderTeams(root);
       } catch (err) {
         console.error(err);
-        toast("Nem sikerült hozzáadni a játékost.");
+        toast("Nem sikerült hozzáadni a kiválasztott játékosokat.");
       }
     };
     body.appendChild(select);
