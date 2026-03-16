@@ -202,28 +202,43 @@ function renderTeamsEditor(container, root, teams, players, participantIds = [])
     const availablePlayers = players.filter(
       p => participantIdSet.has(p.id) && !team.players.some(tp => tp.id === p.id)
     );
-    const select = el(`
-      <div class="row" style="align-items:center;">
-        <select class="input" style="flex:1;">
-          <option value="">Játékos hozzáadása…</option>
-          ${availablePlayers.map(p => `<option value="${p.id}">${p.name} (skill ${p.skill}${p.isGoalie ? ", kapus" : ""})</option>`).join("")}
-        </select>
-        <button data-action="add">Hozzáadás</button>
-      </div>
-    `);
-    const selectEl = select.querySelector("select");
-    select.querySelector("button[data-action=add]").onclick = async () => {
-      const playerId = Number(selectEl.value);
-      if (!playerId) return toast("Válassz játékost.");
-      try {
-        await api.addTeamMember(store.currentMatchId, team.id, playerId);
-        await renderTeams(root);
-      } catch (err) {
-        console.error(err);
-        toast("Nem sikerült hozzáadni a játékost.");
-      }
-    };
-    body.appendChild(select);
+
+    if (availablePlayers.length) {
+      const picker = el(`
+        <div style="margin-top:8px;">
+          <div class="small" style="margin:6px 0;">Játékosok hozzáadása (többet is kijelölhetsz):</div>
+          <div class="input" style="max-height:140px;overflow:auto;display:flex;flex-direction:column;gap:6px;">
+            ${availablePlayers.map(p => `
+              <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" value="${p.id}" />
+                <span>${p.name} (skill ${p.skill}${p.isGoalie ? ", kapus" : ""})</span>
+              </label>
+            `).join("")}
+          </div>
+          <div class="row" style="margin-top:6px;justify-content:flex-end;">
+            <button data-action="add">Kijelöltek hozzáadása</button>
+          </div>
+        </div>
+      `);
+      picker.querySelector("button[data-action=add]").onclick = async () => {
+        const selectedIds = Array.from(picker.querySelectorAll("input[type=checkbox]:checked"))
+          .map(input => Number(input.value))
+          .filter(Boolean);
+        if (!selectedIds.length) return toast("Válassz legalább egy játékost.");
+        try {
+          await Promise.all(
+            selectedIds.map(playerId => api.addTeamMember(store.currentMatchId, team.id, playerId))
+          );
+          await renderTeams(root);
+        } catch (err) {
+          console.error(err);
+          toast("Nem sikerült hozzáadni a kiválasztott játékosokat.");
+        }
+      };
+      body.appendChild(picker);
+    } else {
+      body.appendChild(el(`<div class="small" style="margin-top:8px;">Nincs több hozzáadható játékos.</div>`));
+    }
 
     card.querySelector("button[data-action=delete]").onclick = async () => {
       try {
