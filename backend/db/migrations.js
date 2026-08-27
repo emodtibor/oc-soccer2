@@ -152,8 +152,29 @@ const migrations = [
       );
     },
   },
+  {
+    id: 4,
+    name: "add_goal_client_request_id",
+    up: async (db) => {
+      const cols = await allAsync(db, `PRAGMA table_info(match_game_goals)`);
+      const hasCol = cols.some(c => c.name === "client_request_id");
+      if (!hasCol) {
+        await runAsync(
+          db,
+          `ALTER TABLE match_game_goals ADD COLUMN client_request_id TEXT`
+        );
+      }
 
-  // ide jöhetnek későbbi migrációk (id: 3, 4, ...)
+      await runAsync(
+        db,
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_match_game_goals_request
+           ON match_game_goals(game_id, client_request_id)
+        WHERE client_request_id IS NOT NULL`
+      );
+    },
+  },
+
+  // ide jöhetnek későbbi migrációk
 ];
 
 async function runMigrations(db, logger = console) {
