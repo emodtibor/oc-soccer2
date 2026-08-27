@@ -7,6 +7,31 @@ const dbGet = (db, sql, params = []) =>
 const dbRun = (db, sql, params = []) =>
   new Promise((res, rej) => db.run(sql, params, function (e) { e ? rej(e) : res(this); }));
 
+const goalSelect = `SELECT g.id,
+                           g.game_id,
+                           g.scoring_team_id,
+                           g.scorer_player_id,
+                           g.is_own_goal,
+                           g.client_request_id,
+                           g.created_at,
+                           p.name AS scorer_name,
+                           st.team_index AS scoring_team_index
+                      FROM match_game_goals g
+                      JOIN match_teams st ON st.id = g.scoring_team_id
+                      LEFT JOIN players p ON p.id = g.scorer_player_id`;
+
+async function getGoalById(db, goalId) {
+  return dbGet(db, `${goalSelect} WHERE g.id = ?`, [goalId]);
+}
+
+async function getGoalByRequestId(db, gameId, clientRequestId) {
+  return dbGet(
+    db,
+    `${goalSelect} WHERE g.game_id = ? AND g.client_request_id = ?`,
+    [gameId, clientRequestId]
+  );
+}
+
 async function ensureMatch(db, matchId) {
   const match = await dbGet(db, "SELECT id FROM matches WHERE id = ?", [matchId]);
   if (!match) {
@@ -56,6 +81,7 @@ async function listByMatch(req, res) {
             g.scoring_team_id,
             g.scorer_player_id,
             g.is_own_goal,
+            g.client_request_id,
             g.created_at,
             p.name AS scorer_name,
             st.team_index AS scoring_team_index
@@ -192,10 +218,18 @@ async function createAuto(req, res) {
 async function addGoal(req, res) {
   const db = req.db;
   const gameId = Number(req.params.gameId);
-  const { scoring_team_id, scorer_player_id, is_own_goal } = req.body ?? {};
+  const {
+    scoring_team_id,
+    scorer_player_id,
+    is_own_goal,
+    client_request_id,
+  } = req.body ?? {};
   const scoringTeamId = Number(scoring_team_id);
   const scorerPlayerId = scorer_player_id == null ? null : Number(scorer_player_id);
   const ownGoal = Boolean(is_own_goal);
+  const clientRequestId = typeof client_request_id === "string"
+    ? client_request_id.trim()
+    : null;
 
   if (!Number.isInteger(gameId)) {
     return res.status(400).json({ error: "Érvénytelen gameId" });
@@ -205,6 +239,9 @@ async function addGoal(req, res) {
   }
   if (scorer_player_id != null && !Number.isInteger(scorerPlayerId)) {
     return res.status(400).json({ error: "scorer_player_id integer legyen" });
+  }
+  if (client_request_id != null && (!clientRequestId || clientRequestId.length > 100)) {
+    return res.status(400).json({ error: "client_request_id 1-100 karakteres string legyen" });
   }
 
   const game = await dbGet(
@@ -222,43 +259,56 @@ async function addGoal(req, res) {
     return res.status(400).json({ error: "A gólt szerző csapat nem része a mérkőzésnek" });
   }
 
-  if (scorerPlayerId != null) {
-    const playerRow = await dbGet(
-      db,
-      `SELECT 1
-         FROM match_participants
-        WHERE match_id = ?
-          AND player_id = ?`,
-      [game.match_id, scorerPlayerId]
-    );
-    if (!playerRow) {
-      return res.status(400).json({ error: "A gólszerző nem résztvevője ennek a meccsnek" });
+  if (clientRequestId) {
+    const existingGoal = await getGoalByRequestId(db, gameId, clientRequestId);
+    if (existingGoal) {
+      return res.status(200).json(existingGoal);
     }
   }
 
-  const ins = await dbRun(
-    db,
-    `INSERT INTO match_game_goals(game_id, scoring_team_id, scorer_player_id, is_own_goal)
-     VALUES(?, ?, ?, ?)`,
-    [gameId, scoringTeamId, scorerPlayerId, ownGoal ? 1 : 0]
-  );
+  if (scorerPlayerId != null) {
+    const scorerTeamId = ownGoal
+      ? (scoringTeamId === game.home_team_id ? game.away_team_id : game.home_team_id)
+      : scoringTeamId;
+    const playerRow = await dbGet(
+      db,
+      `SELECT 1
+         FROM match_team_members mtm
+         JOIN match_teams mt ON mt.id = mtm.team_id
+        WHERE mt.match_id = ?
+          AND mtm.team_id = ?
+          AND mtm.player_id = ?`,
+      [game.match_id, scorerTeamId, scorerPlayerId]
+    );
+    if (!playerRow) {
+      return res.status(400).json({ error: "A gólszerző nem tagja a megfelelő csapatnak" });
+    }
+  }
 
-  const row = await dbGet(
-    db,
-    `SELECT g.id,
-            g.game_id,
-            g.scoring_team_id,
-            g.scorer_player_id,
-            g.is_own_goal,
-            g.created_at,
-            p.name AS scorer_name,
-            st.team_index AS scoring_team_index
-       FROM match_game_goals g
-       JOIN match_teams st ON st.id = g.scoring_team_id
-       LEFT JOIN players p ON p.id = g.scorer_player_id
-      WHERE g.id = ?`,
-    [ins.lastID]
-  );
+  let ins;
+  try {
+    ins = await dbRun(
+      db,
+      `INSERT INTO match_game_goals(
+         game_id,
+         scoring_team_id,
+         scorer_player_id,
+         is_own_goal,
+         client_request_id
+       ) VALUES(?, ?, ?, ?, ?)`,
+      [gameId, scoringTeamId, scorerPlayerId, ownGoal ? 1 : 0, clientRequestId]
+    );
+  } catch (err) {
+    if (clientRequestId && err?.code === "SQLITE_CONSTRAINT") {
+      const existingGoal = await getGoalByRequestId(db, gameId, clientRequestId);
+      if (existingGoal) {
+        return res.status(200).json(existingGoal);
+      }
+    }
+    throw err;
+  }
+
+  const row = await getGoalById(db, ins.lastID);
 
   res.status(201).json(row);
 }

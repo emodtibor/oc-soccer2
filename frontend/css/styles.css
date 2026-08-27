@@ -27,10 +27,39 @@ th,td{border-bottom:1px solid #213040;padding:8px;text-align:left}
 .team-editor-body{margin-top:8px}
 .small{font-size:12px;color:var(--muted)}
 .game-actions h3{margin:0 0 8px 0}
-.game-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-.game-card{display:flex;flex-direction:column;gap:12px}
+.game-grid{display:grid;grid-template-columns:minmax(0,860px);justify-content:center;gap:16px}
+.game-card{display:flex;flex-direction:column;gap:12px;transition:border-color .2s,box-shadow .2s}
 .game-score{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .score-pill{background:#0e151c;border:1px solid #213040;border-radius:999px;padding:6px 10px;font-weight:600}
+.live-scoreboard{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;background:#0e151c;border:1px solid #213040;border-radius:14px;padding:12px}
+.live-team-score{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;font-weight:650}
+.live-team-score strong{font-size:42px;line-height:1;font-variant-numeric:tabular-nums}
+.score-divider{font-size:28px;color:var(--muted)}
+.live-help{margin:0;text-align:center}
+.live-team-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.live-team-panel{min-width:0;border:1px solid #2a3c4e;border-top:4px solid #516779;border-radius:12px;padding:10px;background:#0e151c}
+.live-team-panel.team-index-0{border-top-color:#4cc9f0}
+.live-team-panel.team-index-1{border-top-color:#f1f5f8}
+.live-team-panel.team-index-2{border-top-color:#f4b942}
+.live-team-panel h4{margin:0 0 8px;text-align:center;font-size:16px}
+.scorer-buttons{display:flex;flex-direction:column;gap:8px}
+.scorer-button{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:56px;padding:10px 12px;text-align:left;font-size:16px;font-weight:650;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
+.scorer-button:active:not(:disabled){transform:scale(.98);border-color:var(--accent)}
+.scorer-name{min-width:0;overflow-wrap:anywhere}
+.scorer-goal-count{flex:0 0 auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.unknown-scorer-button{width:100%;min-height:44px;margin-top:2px;border-style:dashed;color:var(--muted);touch-action:manipulation}
+.live-game-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px}
+.undo-last-goal{min-height:40px}
+.goal-save-status{margin-left:auto;text-align:right}
+.goal-save-status.error{color:#ff9a9a}
+.game-history{border-top:1px solid #213040;padding-top:10px}
+.game-history summary{cursor:pointer;color:var(--muted);font-size:13px}
+.game-history[open] summary{margin-bottom:8px}
+.game-admin-actions{display:flex;justify-content:flex-end}
+.game-admin-actions .delete-game-btn{font-size:12px;padding:5px 8px}
+.game-card.is-saving .live-team-columns{opacity:.68}
+.game-card.goal-saved{animation:goal-saved-pulse .45s ease-out}
+@keyframes goal-saved-pulse{0%{border-color:var(--accent);box-shadow:0 0 0 0 rgba(76,201,240,.4)}100%{border-color:#213040;box-shadow:0 0 0 10px rgba(76,201,240,0)}}
 .game-goals{display:flex;flex-direction:column;gap:6px}
 .goal-row{display:flex;gap:8px;align-items:center}
 .goal-row .goal-delete{margin-left:auto;padding:4px 8px;font-size:12px}
@@ -47,8 +76,25 @@ th,td{border-bottom:1px solid #213040;padding:8px;text-align:left}
 .sort-button.is-active[data-dir="desc"] .sort-indicator::after{border-top:none;border-bottom:6px solid #9fc8da}
 .sort-button.is-active[data-dir="asc"] .sort-indicator::after{border-top:6px solid #9fc8da}
 @media (max-width: 720px) {
+  main{padding:10px}
   .row{flex-direction:column;align-items:stretch}
   .game-score{flex-direction:column;align-items:flex-start}
   .game-form{flex-direction:column;align-items:stretch}
   .score-pill{align-self:flex-start}
+  .game-card{margin-bottom:0;padding:10px}
+  .live-scoreboard{padding:10px}
+  .live-team-score strong{font-size:38px}
+  .live-team-columns{gap:7px}
+  .live-team-panel{padding:7px}
+  .scorer-buttons{gap:7px}
+  .scorer-button{min-height:58px;padding:8px;font-size:15px}
+  .scorer-goal-count{font-size:12px}
+  .unknown-scorer-button{min-height:46px;padding:7px;font-size:12px}
+  .live-game-actions{align-items:stretch;flex-direction:column}
+  .goal-save-status{min-height:16px;margin-left:0;text-align:center}
+  .undo-last-goal{width:100%;min-height:48px}
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-card{transition:none}
+  .game-card.goal-saved{animation:none}
 }

@@ -19,15 +19,21 @@ function buildTeamOptions(teams) {
     .join("");
 }
 
-function buildScorerOptions(players) {
-  const playerOptions = players
-    .map(player => `<option value="${player.id}">${player.name}</option>`)
-    .join("");
-  return `
-    <option value="">Gólszerző…</option>
-    ${playerOptions}
-    <option value="own-goal">Öngól</option>
-  `;
+function createClientRequestId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `goal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getTeamScore(game, teamId) {
+  return game.goals.filter(goal => goal.scoring_team_id === teamId).length;
+}
+
+function getPlayerGoalCount(game, playerId) {
+  return game.goals.filter(goal => (
+    !goal.is_own_goal && goal.scorer_player_id === playerId
+  )).length;
 }
 
 function computeTeamStandings(teams, games) {
@@ -300,6 +306,11 @@ async function renderMatchGames(container, matchId, { readOnly = false } = {}) {
   const teamCount = teams.length;
 
   const gamesWrap = el(`<div class="game-grid"></div>`);
+  const summaryWrap = el(`<div class="games-summary"></div>`);
+  const refreshSummary = () => {
+    clear(summaryWrap);
+    renderTablesSummary(summaryWrap, teams, games);
+  };
 
   games.forEach(game => {
     const homeTeam = teamsById.get(game.home_team_id);
@@ -307,34 +318,92 @@ async function renderMatchGames(container, matchId, { readOnly = false } = {}) {
     const homeName = getTeamName(game.home_team_index, teamCount);
     const awayName = getTeamName(game.away_team_index, teamCount);
 
-    const score = {
-      home: game.goals.filter(g => g.scoring_team_id === game.home_team_id).length,
-      away: game.goals.filter(g => g.scoring_team_id === game.away_team_id).length,
-    };
-
     const card = el(`
       <div class="panel game-card">
-        <div class="game-score">
-          <div>
-            <strong>${homeName}</strong>
-            <span class="small">(${homeTeam?.players.length ?? 0} játékos)</span>
+        <div class="live-scoreboard" aria-label="Eredmény">
+          <div class="live-team-score">
+            <span>${homeName}</span>
+            <strong data-score="${game.home_team_id}">0</strong>
           </div>
-          <div class="score-pill">${score.home} : ${score.away}</div>
-          <div>
-            <strong>${awayName}</strong>
-            <span class="small">(${awayTeam?.players.length ?? 0} játékos)</span>
+          <span class="score-divider">:</span>
+          <div class="live-team-score">
+            <span>${awayName}</span>
+            <strong data-score="${game.away_team_id}">0</strong>
           </div>
         </div>
-        <div class="game-goals"></div>
-        <div class="game-form"></div>
-        ${readOnly ? "" : `<div class="row" style="justify-content:flex-end;margin-top:8px;"><button class="danger delete-game-btn" type="button" title="Mérkőzés törlése">Mérkőzés törlése</button></div>`}
+        ${readOnly ? "" : `
+          <p class="live-help small">Gólnál koppints egyszer a gólszerző nevére.</p>
+          <div class="live-team-columns">
+            <section class="live-team-panel team-index-${game.home_team_index}">
+              <h4>${homeName}</h4>
+              <div class="scorer-buttons" data-team-scorers="${game.home_team_id}"></div>
+            </section>
+            <section class="live-team-panel team-index-${game.away_team_index}">
+              <h4>${awayName}</h4>
+              <div class="scorer-buttons" data-team-scorers="${game.away_team_id}"></div>
+            </section>
+          </div>
+          <div class="live-game-actions">
+            <button class="undo-last-goal" type="button">↶ Utolsó gól visszavonása</button>
+            <span class="goal-save-status small" role="status" aria-live="polite"></span>
+          </div>
+        `}
+        <details class="game-history">
+          <summary>Gólok részletei (<span class="goal-history-count">0</span>)</summary>
+          <div class="game-goals"></div>
+        </details>
+        ${readOnly ? "" : `<div class="game-admin-actions"><button class="danger delete-game-btn" type="button" title="Mérkőzés törlése">Mérkőzés törlése</button></div>`}
       </div>
     `);
 
-    const goalsWrap = card.querySelector(".game-goals");
-    if (!game.goals.length) {
-      goalsWrap.appendChild(el(`<div class="small">Még nincs gól.</div>`));
-    } else {
+    let isSaving = false;
+    const status = card.querySelector(".goal-save-status");
+    const undoButton = card.querySelector(".undo-last-goal");
+
+    const setStatus = (message, isError = false) => {
+      if (!status) return;
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+    };
+
+    const setBusy = (busy) => {
+      isSaving = busy;
+      card.classList.toggle("is-saving", busy);
+      card.querySelectorAll(".goal-action, .goal-delete, .undo-last-goal").forEach(button => {
+        button.disabled = busy || (button.classList.contains("undo-last-goal") && !game.goals.length);
+      });
+    };
+
+    const deleteGoal = async goal => {
+      if (isSaving) return;
+      setBusy(true);
+      setStatus("Visszavonás…");
+      try {
+        await api.deleteGameGoal(game.id, goal.id);
+        const index = game.goals.findIndex(item => item.id === goal.id);
+        if (index >= 0) game.goals.splice(index, 1);
+        setStatus("A gól visszavonva.");
+        updateCard();
+        refreshSummary();
+      } catch (err) {
+        console.error(err);
+        setStatus("Nem sikerült visszavonni a gólt.", true);
+        toast("Nem sikerült visszavonni a gólt.");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const renderGoalHistory = () => {
+      const goalsWrap = card.querySelector(".game-goals");
+      clear(goalsWrap);
+      card.querySelector(".goal-history-count").textContent = String(game.goals.length);
+
+      if (!game.goals.length) {
+        goalsWrap.appendChild(el(`<div class="small">Még nincs gól.</div>`));
+        return;
+      }
+
       game.goals.forEach(goal => {
         const scorer = goal.is_own_goal ? "Öngól" : (goal.scorer_name ?? "Ismeretlen");
         const teamLabel = goal.scoring_team_id === game.home_team_id ? homeName : awayName;
@@ -346,79 +415,94 @@ async function renderMatchGames(container, matchId, { readOnly = false } = {}) {
           </div>
         `);
         if (!readOnly) {
-          row.querySelector(".goal-delete").onclick = async () => {
-            try {
-              await api.deleteGameGoal(game.id, goal.id);
-              await renderMatchGames(container, matchId, { readOnly });
-            } catch (err) {
-              console.error(err);
-              toast("Nem sikerült törölni a gólt.");
-            }
-          };
+          row.querySelector(".goal-delete").onclick = () => deleteGoal(goal);
         }
         goalsWrap.appendChild(row);
       });
+    };
+
+    const addGoal = async (teamId, player = null) => {
+      if (isSaving) return;
+      setBusy(true);
+      setStatus("Gól mentése…");
+      try {
+        const savedGoal = await api.addGameGoal(game.id, {
+          scoring_team_id: teamId,
+          scorer_player_id: player?.id ?? null,
+          is_own_goal: false,
+          client_request_id: createClientRequestId(),
+        });
+        if (!game.goals.some(goal => goal.id === savedGoal.id)) {
+          game.goals.push(savedGoal);
+        }
+        setStatus(`Gól: ${player?.name ?? "ismeretlen gólszerző"}`);
+        card.classList.remove("goal-saved");
+        void card.offsetWidth;
+        card.classList.add("goal-saved");
+        updateCard();
+        refreshSummary();
+      } catch (err) {
+        console.error(err);
+        setStatus("Nem sikerült menteni a gólt.", true);
+        toast("Nem sikerült menteni a gólt.");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const renderScorerButtons = (team, teamId) => {
+      const wrap = card.querySelector(`[data-team-scorers="${teamId}"]`);
+      if (!wrap) return;
+      clear(wrap);
+
+      (team?.players ?? []).forEach(player => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "goal-action scorer-button";
+        button.setAttribute("aria-label", `${player.name} gól hozzáadása`);
+
+        const name = document.createElement("span");
+        name.className = "scorer-name";
+        name.textContent = player.name;
+
+        const count = document.createElement("span");
+        count.className = "scorer-goal-count";
+        count.textContent = `${getPlayerGoalCount(game, player.id)} ⚽`;
+
+        button.append(name, count);
+        button.onclick = () => addGoal(teamId, player);
+        wrap.appendChild(button);
+      });
+
+      const unknownButton = document.createElement("button");
+      unknownButton.type = "button";
+      unknownButton.className = "goal-action unknown-scorer-button";
+      unknownButton.textContent = "Nem láttam, ki volt";
+      unknownButton.onclick = () => addGoal(teamId);
+      wrap.appendChild(unknownButton);
+    };
+
+    function updateCard() {
+      card.querySelector(`[data-score="${game.home_team_id}"]`).textContent = String(
+        getTeamScore(game, game.home_team_id)
+      );
+      card.querySelector(`[data-score="${game.away_team_id}"]`).textContent = String(
+        getTeamScore(game, game.away_team_id)
+      );
+      renderGoalHistory();
+      if (!readOnly) {
+        renderScorerButtons(homeTeam, game.home_team_id);
+        renderScorerButtons(awayTeam, game.away_team_id);
+        undoButton.disabled = isSaving || !game.goals.length;
+      }
     }
 
-    const form = card.querySelector(".game-form");
-    if (readOnly) {
-      form.innerHTML = `<div class="small">Csak megtekintés (bejelentkezés nélkül).</div>`;
-    } else {
-      form.innerHTML = `
-        <select class="input scoring-team-select">
-          <option value="${game.home_team_id}">${homeName}</option>
-          <option value="${game.away_team_id}">${awayName}</option>
-        </select>
-        <select class="input scorer-select"></select>
-        <button class="primary add-goal-btn">Gól hozzáadása</button>
-      `;
-
-      const scorerSelect = form.querySelector(".scorer-select");
-      const teamSelect = form.querySelector(".scoring-team-select");
-      const addGoalBtn = form.querySelector(".add-goal-btn");
-
-      const updateScorerOptions = () => {
-        const selectedTeamId = Number(teamSelect.value);
-        const selectedTeam = teamsById.get(selectedTeamId);
-        const teamPlayers = selectedTeam?.players ?? [];
-        scorerSelect.innerHTML = buildScorerOptions(teamPlayers);
-      };
-
-      teamSelect.onchange = updateScorerOptions;
-      updateScorerOptions();
-
-      addGoalBtn.onclick = async () => {
-        const selectedTeamId = Number(teamSelect.value);
-        if (!selectedTeamId) {
-          return toast("Válassz csapatot.");
-        }
-        const scorerValue = scorerSelect.value;
-        if (!scorerValue) {
-          return toast("Válassz gólszerzőt.");
-        }
-        const isOwnGoal = scorerValue === "own-goal";
-        const scorerId = isOwnGoal ? null : Number(scorerValue);
-        if (!isOwnGoal && !scorerId) {
-          return toast("Válassz gólszerzőt.");
-        }
-        const scoringTeamId = isOwnGoal
-          ? (selectedTeamId === game.home_team_id ? game.away_team_id : game.home_team_id)
-          : selectedTeamId;
-        const payload = {
-          scoring_team_id: scoringTeamId,
-          scorer_player_id: scorerId,
-          is_own_goal: isOwnGoal,
-        };
-        try {
-          await api.addGameGoal(game.id, payload);
-          await renderMatchGames(container, matchId, { readOnly });
-        } catch (err) {
-          console.error(err);
-          toast("Nem sikerült menteni a gólt.");
-        }
-      };
-    }
     if (!readOnly) {
+      undoButton.onclick = () => {
+        const lastGoal = game.goals.at(-1);
+        if (lastGoal) deleteGoal(lastGoal);
+      };
+
       card.querySelector(".delete-game-btn").onclick = async () => {
         try {
           await api.deleteMatchGame(matchId, game.id);
@@ -430,9 +514,11 @@ async function renderMatchGames(container, matchId, { readOnly = false } = {}) {
       };
     }
 
+    updateCard();
     gamesWrap.appendChild(card);
   });
 
   container.appendChild(gamesWrap);
-  renderTablesSummary(container, teams, games);
+  container.appendChild(summaryWrap);
+  refreshSummary();
 }
